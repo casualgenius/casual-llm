@@ -6,7 +6,13 @@ import logging
 from typing import List, Literal, Optional, Dict, Any
 from openai import AsyncOpenAI
 
-from casual_llm.messages import ChatMessage
+from casual_llm.messages import ChatMessage, AssistantMessage
+from casual_llm.tools import Tool
+from casual_llm.tool_converters import tools_to_openai
+from casual_llm.message_converters import (
+    convert_messages_to_openai,
+    convert_tool_calls_from_openai,
+)
 from casual_llm.utils import extract_json_from_markdown
 
 logger = logging.getLogger(__name__)
@@ -64,7 +70,8 @@ class OpenAIProvider:
         messages: List[ChatMessage],
         response_format: Literal["json", "text"] = "text",
         max_tokens: Optional[int] = None,
-    ) -> str:
+        tools: Optional[List[Tool]] = None,
+    ) -> str | AssistantMessage:
         """
         Generate a chat response using OpenAI API.
 
@@ -72,15 +79,18 @@ class OpenAIProvider:
             messages: Conversation messages (ChatMessage format)
             response_format: "json" for structured output, "text" for plain text
             max_tokens: Maximum tokens to generate (optional)
+            tools: List of tools available for the LLM to call (optional)
 
         Returns:
-            The LLM's response as a string
+            If tools are provided: AssistantMessage (may contain tool_calls)
+            If no tools: String response content
 
         Raises:
             openai.OpenAIError: If request fails
         """
-        # ChatMessages already match OpenAI format - just convert to dict
-        chat_messages = [msg.model_dump(exclude_none=True) for msg in messages]
+        # Convert messages to OpenAI format using converter
+        chat_messages = convert_messages_to_openai(messages)
+        logger.debug(f"Converted {len(messages)} messages to OpenAI format")
 
         # Build request kwargs
         request_kwargs: Dict[str, Any] = {
@@ -95,22 +105,42 @@ class OpenAIProvider:
         if max_tokens:
             request_kwargs["max_tokens"] = max_tokens
 
+        # Add tools if provided
+        if tools:
+            converted_tools = tools_to_openai(tools)
+            request_kwargs["tools"] = converted_tools
+            logger.debug(f"Added {len(converted_tools)} tools to request")
+
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
         logger.debug(f"Generating with model {self.model}")
         response = await self.client.chat.completions.create(**request_kwargs)
 
-        content = response.choices[0].message.content or ""
-        logger.debug(f"Generated {len(content)} characters")
+        response_message = response.choices[0].message
 
+        # If tools were provided, return AssistantMessage with potential tool calls
+        if tools:
+            tool_calls = None
+            if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+                logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+                tool_calls = convert_tool_calls_from_openai(response_message.tool_calls)
+
+            return AssistantMessage(
+                content=response_message.content,
+                tool_calls=tool_calls
+            )
+
+        # No tools - return simple string response
+        content = response_message.content or ""
+        logger.debug(f"Generated {len(content)} characters")
         return content
 
     async def chat_json(
         self,
         messages: List[ChatMessage],
         max_tokens: Optional[int] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Generate and parse JSON response.
 
@@ -129,4 +159,8 @@ class OpenAIProvider:
             json.JSONDecodeError: If response is not valid JSON
         """
         response = await self.chat(messages, response_format="json", max_tokens=max_tokens)
-        return extract_json_from_markdown(response)
+        # Response should be a string when no tools are provided
+        if isinstance(response, str):
+            result: dict[str, Any] = extract_json_from_markdown(response)
+            return result
+        raise ValueError("chat_json cannot be used with tools")

@@ -8,7 +8,8 @@ using standard OpenAI-compatible message formats.
 from typing import Protocol, List, Optional, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from casual_llm.messages import ChatMessage
+    from casual_llm.messages import ChatMessage, AssistantMessage
+    from casual_llm.tools import Tool
 
 
 class LLMProvider(Protocol):
@@ -36,7 +37,8 @@ class LLMProvider(Protocol):
         messages: List["ChatMessage"],
         response_format: Literal["json", "text"] = "text",
         max_tokens: Optional[int] = None,
-    ) -> str:
+        tools: Optional[List["Tool"]] = None,
+    ) -> "str | AssistantMessage":
         """
         Generate a chat response from the LLM.
 
@@ -44,9 +46,11 @@ class LLMProvider(Protocol):
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
             response_format: Expected response format ("json" or "text")
             max_tokens: Maximum tokens to generate (optional)
+            tools: List of tools available for the LLM to call (optional)
 
         Returns:
-            The LLM's response as a string
+            If tools are provided: AssistantMessage (may contain tool_calls)
+            If no tools: String response content
 
         Raises:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)

@@ -31,6 +31,25 @@ from casual_llm.messages import (
     AssistantToolCallFunction,
 )
 
+# Tool models
+from casual_llm.tools import Tool, ToolParameter
+
+# Tool converters
+from casual_llm.tool_converters import (
+    tool_to_ollama,
+    tools_to_ollama,
+    tool_to_openai,
+    tools_to_openai,
+)
+
+# Message converters
+from casual_llm.message_converters import (
+    convert_messages_to_openai,
+    convert_messages_to_ollama,
+    convert_tool_calls_from_openai,
+    convert_tool_calls_from_ollama,
+)
+
 # Utilities
 from casual_llm.utils import extract_json_from_markdown
 
@@ -52,6 +71,18 @@ __all__ = [
     "ToolResultMessage",
     "AssistantToolCall",
     "AssistantToolCallFunction",
+    # Tools
+    "Tool",
+    "ToolParameter",
+    "tool_to_ollama",
+    "tools_to_ollama",
+    "tool_to_openai",
+    "tools_to_openai",
+    # Message converters
+    "convert_messages_to_openai",
+    "convert_messages_to_ollama",
+    "convert_tool_calls_from_openai",
+    "convert_tool_calls_from_ollama",
     # Utils
     "extract_json_from_markdown",
 ]

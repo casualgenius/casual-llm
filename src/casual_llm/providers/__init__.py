@@ -53,10 +53,10 @@ def create_provider(
         >>> provider = create_provider(config, max_retries=2, enable_metrics=True)
     """
     if model_config.provider == Provider.OLLAMA:
-        endpoint = model_config.base_url or "http://localhost:11434"
+        host = model_config.base_url or "http://localhost:11434"
         return OllamaProvider(
             model=model_config.name,
-            endpoint=endpoint,
+            host=host,
             temperature=model_config.temperature,
             timeout=timeout,
             max_retries=max_retries,
