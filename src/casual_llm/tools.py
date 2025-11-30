@@ -4,7 +4,7 @@ Tool definitions for LLM function calling.
 Provides unified tool models compatible with Ollama, OpenAI, and MCP.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 from pydantic import BaseModel, Field
 
 
@@ -16,16 +16,16 @@ class ToolParameter(BaseModel):
     """
 
     type: str = Field(..., description="JSON Schema type (string, number, object, array, etc.)")
-    description: Optional[str] = Field(None, description="Parameter description")
-    enum: Optional[List[Any]] = Field(None, description="Allowed values for enum types")
-    items: Optional[Dict[str, Any]] = Field(None, description="Array item schema")
-    properties: Optional[Dict[str, "ToolParameter"]] = Field(
+    description: str | None = Field(None, description="Parameter description")
+    enum: list[Any] | None = Field(None, description="Allowed values for enum types")
+    items: dict[str, Any] | None = Field(None, description="Array item schema")
+    properties: dict[str, "ToolParameter"] | None = Field(
         None, description="Object properties for nested objects"
     )
-    required: Optional[List[str]] = Field(
+    required: list[str] | None = Field(
         None, description="Required properties for nested objects"
     )
-    default: Optional[Any] = Field(None, description="Default value")
+    default: Any | None = Field(None, description="Default value")
 
     model_config = {"extra": "allow"}  # Allow additional JSON Schema fields
 
@@ -58,17 +58,17 @@ class Tool(BaseModel):
 
     name: str = Field(..., description="Tool name (must be valid identifier)")
     description: str = Field(..., description="What the tool does")
-    parameters: Dict[str, ToolParameter] = Field(
+    parameters: dict[str, ToolParameter] = Field(
         default_factory=dict,
         description="Tool parameters as JSON Schema properties"
     )
-    required: List[str] = Field(
+    required: list[str] = Field(
         default_factory=list,
         description="List of required parameter names"
     )
 
     @property
-    def input_schema(self) -> Dict[str, Any]:
+    def input_schema(self) -> dict[str, Any]:
         """
         Get the full JSON Schema for tool inputs.
 
@@ -91,7 +91,7 @@ class Tool(BaseModel):
         cls,
         name: str,
         description: str,
-        input_schema: Dict[str, Any]
+        input_schema: dict[str, Any]
     ) -> "Tool":
         """
         Create a Tool from an MCP-style inputSchema.

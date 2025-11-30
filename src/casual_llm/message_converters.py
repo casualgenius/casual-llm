@@ -5,7 +5,7 @@ Converts casual-llm ChatMessage format to provider-specific formats (OpenAI, Oll
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from casual_llm.messages import (
     ChatMessage,
@@ -17,7 +17,7 @@ from casual_llm.messages import (
 logger = logging.getLogger(__name__)
 
 
-def convert_messages_to_openai(messages: List[ChatMessage]) -> List[Dict[str, Any]]:
+def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     """
     Convert casual-llm ChatMessage list to OpenAI format.
 
@@ -41,13 +41,13 @@ def convert_messages_to_openai(messages: List[ChatMessage]) -> List[Dict[str, An
 
     logger.debug(f"Converting {len(messages)} messages to OpenAI format")
 
-    openai_messages: List[Dict[str, Any]] = []
+    openai_messages: list[dict[str, Any]] = []
 
     for msg in messages:
         match msg.role:
             case "assistant":
                 # Handle assistant messages with optional tool calls
-                message: Dict[str, Any] = {
+                message: dict[str, Any] = {
                     "role": "assistant",
                     "content": msg.content,
                 }
@@ -94,7 +94,7 @@ def convert_messages_to_openai(messages: List[ChatMessage]) -> List[Dict[str, An
     return openai_messages
 
 
-def convert_messages_to_ollama(messages: List[ChatMessage]) -> List[Dict[str, Any]]:
+def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     """
     Convert casual-llm ChatMessage list to Ollama format.
 
@@ -119,8 +119,8 @@ def convert_messages_to_ollama(messages: List[ChatMessage]) -> List[Dict[str, An
 
 
 def convert_tool_calls_from_openai(
-    response_tool_calls: List[Any],
-) -> List[AssistantToolCall]:
+    response_tool_calls: list[Any],
+) -> list[AssistantToolCall]:
     """
     Convert OpenAI ChatCompletionMessageToolCall to casual-llm format.
 
@@ -156,8 +156,8 @@ def convert_tool_calls_from_openai(
 
 
 def convert_tool_calls_from_ollama(
-    response_tool_calls: List[Dict[str, Any]],
-) -> List[AssistantToolCall]:
+    response_tool_calls: list[dict[str, Any]],
+) -> list[AssistantToolCall]:
     """
     Convert Ollama tool calls to casual-llm format.
 

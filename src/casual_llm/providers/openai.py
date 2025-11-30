@@ -3,7 +3,7 @@ OpenAI LLM provider (compatible with OpenAI API and compatible services).
 """
 
 import logging
-from typing import List, Literal, Optional, Dict, Any
+from typing import Literal, Any
 from openai import AsyncOpenAI
 
 from casual_llm.messages import ChatMessage, AssistantMessage
@@ -28,12 +28,12 @@ class OpenAIProvider:
     def __init__(
         self,
         model: str,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        organization: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        organization: str | None = None,
         temperature: float = 0.2,
         timeout: float = 60.0,
-        extra_kwargs: Optional[Dict[str, Any]] = None,
+        extra_kwargs: dict[str, Any] | None = None,
     ):
         """
         Initialize OpenAI provider.
@@ -47,7 +47,7 @@ class OpenAIProvider:
             timeout: HTTP request timeout in seconds
             extra_kwargs: Additional kwargs to pass to client.chat.completions.create()
         """
-        client_kwargs: Dict[str, Any] = {"timeout": timeout}
+        client_kwargs: dict[str, Any] = {"timeout": timeout}
 
         if api_key:
             client_kwargs["api_key"] = api_key
@@ -67,10 +67,10 @@ class OpenAIProvider:
 
     async def chat(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-        tools: Optional[List[Tool]] = None,
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
     ) -> str | AssistantMessage:
         """
         Generate a chat response using OpenAI API.
@@ -93,7 +93,7 @@ class OpenAIProvider:
         logger.debug(f"Converted {len(messages)} messages to OpenAI format")
 
         # Build request kwargs
-        request_kwargs: Dict[str, Any] = {
+        request_kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": chat_messages,
             "temperature": self.temperature,
@@ -138,8 +138,8 @@ class OpenAIProvider:
 
     async def chat_json(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """
         Generate and parse JSON response.

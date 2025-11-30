@@ -4,7 +4,7 @@ Ollama LLM provider using the official ollama library.
 
 import logging
 import asyncio
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal
 from ollama import AsyncClient
 from ollama import ResponseError, RequestError
 
@@ -89,10 +89,10 @@ class OllamaProvider:
 
     async def chat(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-        tools: Optional[List[Tool]] = None,
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
     ) -> str | AssistantMessage:
         """
         Generate a chat response using Ollama.
@@ -140,7 +140,7 @@ class OllamaProvider:
             logger.debug(f"Added {len(converted_tools)} tools to request")
 
         # Execute with retry logic
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -216,8 +216,8 @@ class OllamaProvider:
 
     async def chat_json(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """
         Generate and parse JSON response.

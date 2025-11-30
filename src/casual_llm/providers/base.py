@@ -5,7 +5,7 @@ Provides a unified interface for different LLM backends (OpenAI, Ollama, etc.)
 using standard OpenAI-compatible message formats.
 """
 
-from typing import Protocol, List, Optional, Literal, TYPE_CHECKING
+from typing import Protocol, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from casual_llm.messages import ChatMessage, AssistantMessage
@@ -34,10 +34,10 @@ class LLMProvider(Protocol):
 
     async def chat(
         self,
-        messages: List["ChatMessage"],
+        messages: list["ChatMessage"],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-        tools: Optional[List["Tool"]] = None,
+        max_tokens: int | None = None,
+        tools: list["Tool"] | None = None,
     ) -> "str | AssistantMessage":
         """
         Generate a chat response from the LLM.

@@ -8,7 +8,7 @@ Supports conversion from casual-llm Tool format to:
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from casual_llm.tools import Tool
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # Ollama format converters
-def tool_to_ollama(tool: Tool) -> Dict[str, Any]:
+def tool_to_ollama(tool: Tool) -> dict[str, Any]:
     """
     Convert a casual-llm Tool to Ollama tool format.
 
@@ -49,7 +49,7 @@ def tool_to_ollama(tool: Tool) -> Dict[str, Any]:
     }
 
 
-def tools_to_ollama(tools: List[Tool]) -> List[Dict[str, Any]]:
+def tools_to_ollama(tools: list[Tool]) -> list[dict[str, Any]]:
     """
     Convert multiple casual-llm Tools to Ollama format.
 
@@ -70,7 +70,7 @@ def tools_to_ollama(tools: List[Tool]) -> List[Dict[str, Any]]:
 
 
 # OpenAI format converters
-def tool_to_openai(tool: Tool) -> Dict[str, Any]:
+def tool_to_openai(tool: Tool) -> dict[str, Any]:
     """
     Convert a casual-llm Tool to OpenAI ChatCompletionToolParam format.
 
@@ -103,7 +103,7 @@ def tool_to_openai(tool: Tool) -> Dict[str, Any]:
     }
 
 
-def tools_to_openai(tools: List[Tool]) -> List[Dict[str, Any]]:
+def tools_to_openai(tools: list[Tool]) -> list[dict[str, Any]]:
     """
     Convert multiple casual-llm Tools to OpenAI format.
 
