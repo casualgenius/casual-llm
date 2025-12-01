@@ -2,6 +2,8 @@
 Ollama LLM provider using the official ollama library.
 """
 
+from __future__ import annotations
+
 import logging
 import asyncio
 from typing import Any, Literal
@@ -15,7 +17,6 @@ from casual_llm.message_converters import (
     convert_messages_to_ollama,
     convert_tool_calls_from_ollama,
 )
-from casual_llm.utils import extract_json_from_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class OllamaProvider:
         response_format: Literal["json", "text"] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
-    ) -> str | AssistantMessage:
+    ) -> AssistantMessage:
         """
         Generate a chat response using Ollama.
 
@@ -104,8 +105,7 @@ class OllamaProvider:
             tools: List of tools available for the LLM to call (optional)
 
         Returns:
-            If tools are provided: AssistantMessage (may contain tool_calls)
-            If no tools: String response content
+            AssistantMessage with content and optional tool_calls
 
         Raises:
             ResponseError: If the request could not be fulfilled
@@ -157,35 +157,30 @@ class OllamaProvider:
                 # Extract message from response
                 response_message = response.message
 
-                # If tools were provided, return AssistantMessage with potential tool calls
-                if tools:
-                    content = response_message.content.strip() if response_message.content else None
-                    tool_calls = None
+                # Parse tool calls if present
+                tool_calls = None
+                if response_message.tool_calls:
+                    logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+                    # Convert ollama tool calls to our format
+                    tool_calls_dicts = []
+                    for tc in response_message.tool_calls:
+                        tool_calls_dicts.append({
+                            "id": getattr(tc, "id", ""),
+                            "type": getattr(tc, "type", "function"),
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        })
+                    tool_calls = convert_tool_calls_from_ollama(tool_calls_dicts)
 
-                    if response_message.tool_calls:
-                        logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
-                        # Convert ollama tool calls to our format
-                        tool_calls_dicts = []
-                        for tc in response_message.tool_calls:
-                            tool_calls_dicts.append({
-                                "id": getattr(tc, "id", ""),
-                                "type": getattr(tc, "type", "function"),
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments
-                                }
-                            })
-                        tool_calls = convert_tool_calls_from_ollama(tool_calls_dicts)
-
-                    return AssistantMessage(
-                        content=content,
-                        tool_calls=tool_calls
-                    )
-
-                # No tools - return simple string response
-                content_str: str = response_message.content.strip() if response_message.content else ""
-                logger.debug(f"Generated {len(content_str)} characters")
-                return content_str
+                # Always return AssistantMessage
+                content = response_message.content.strip() if response_message.content else ""
+                logger.debug(f"Generated {len(content)} characters")
+                return AssistantMessage(
+                    content=content,
+                    tool_calls=tool_calls
+                )
 
             except (ConnectionError, TimeoutError) as e:
                 # Transient errors - retry
@@ -213,33 +208,3 @@ class OllamaProvider:
         if last_exception:
             raise last_exception
         raise RuntimeError("Unknown error occurred")
-
-    async def chat_json(
-        self,
-        messages: list[ChatMessage],
-        max_tokens: int | None = None,
-    ) -> dict[str, Any]:
-        """
-        Generate and parse JSON response.
-
-        Convenience method that calls chat() with response_format="json"
-        and automatically parses the result.
-
-        Args:
-            messages: Conversation messages (ChatMessage format)
-            max_tokens: Maximum tokens to generate (optional)
-
-        Returns:
-            Parsed JSON object
-
-        Raises:
-            ResponseError: If the request could not be fulfilled
-            RequestError: If the request was invalid
-            json.JSONDecodeError: If response is not valid JSON
-        """
-        response = await self.chat(messages, response_format="json", max_tokens=max_tokens)
-        # Response should be a string when no tools are provided
-        if isinstance(response, str):
-            result: dict[str, Any] = extract_json_from_markdown(response)
-            return result
-        raise ValueError("chat_json cannot be used with tools")

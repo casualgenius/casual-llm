@@ -4,6 +4,8 @@ Tool definitions for LLM function calling.
 Provides unified tool models compatible with Ollama, OpenAI, and MCP.
 """
 
+from __future__ import annotations
+
 from typing import Any
 from pydantic import BaseModel, Field
 
@@ -19,7 +21,7 @@ class ToolParameter(BaseModel):
     description: str | None = Field(None, description="Parameter description")
     enum: list[Any] | None = Field(None, description="Allowed values for enum types")
     items: dict[str, Any] | None = Field(None, description="Array item schema")
-    properties: dict[str, "ToolParameter"] | None = Field(
+    properties: dict[str, ToolParameter] | None = Field(
         None, description="Object properties for nested objects"
     )
     required: list[str] | None = Field(

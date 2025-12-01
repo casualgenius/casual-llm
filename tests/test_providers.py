@@ -46,7 +46,9 @@ class TestOllamaProvider:
 
             result = await provider.chat(messages, response_format="text")
 
-            assert result == "Hello, I'm a test response!"
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Hello, I'm a test response!"
+            assert result.tool_calls is None
 
     @pytest.mark.asyncio
     async def test_generate_json_success(self, provider):
@@ -62,7 +64,8 @@ class TestOllamaProvider:
 
             result = await provider.chat(messages, response_format="json")
 
-            assert '{"name": "test", "value": 42}' in result
+            assert isinstance(result, AssistantMessage)
+            assert '{"name": "test", "value": 42}' in result.content
 
     @pytest.mark.asyncio
     async def test_generate_with_conversation(self, provider):
@@ -83,7 +86,8 @@ class TestOllamaProvider:
 
             result = await provider.chat(messages, response_format="text")
 
-            assert result == "Got it!"
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Got it!"
             # Verify the messages were passed
             call_args = mock_chat.call_args
             assert call_args is not None
@@ -103,7 +107,8 @@ class TestOllamaProvider:
 
             result = await provider.chat(messages, response_format="text")
 
-            assert result == "Handled!"
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Handled!"
 
     @pytest.mark.asyncio
     async def test_retry_on_transient_failure(self, provider):
@@ -125,7 +130,8 @@ class TestOllamaProvider:
                 messages = [UserMessage(content="Test")]
                 result = await provider.chat(messages, response_format="text")
 
-                assert result == "Success after retry"
+                assert isinstance(result, AssistantMessage)
+                assert result.content == "Success after retry"
                 assert mock_chat.call_count == 2  # Retried once
 
     @pytest.mark.asyncio
@@ -191,7 +197,10 @@ class TestOpenAIProvider:
     async def test_generate_text_success(self, provider):
         """Test successful text generation"""
         mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(content="Hello from OpenAI!"))]
+        mock_message = MagicMock(content="Hello from OpenAI!", tool_calls=None)
+        # Remove tool_calls attribute entirely to match real behavior
+        del mock_message.tool_calls
+        mock_completion.choices = [MagicMock(message=mock_message)]
 
         with patch.object(
             provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
@@ -199,7 +208,9 @@ class TestOpenAIProvider:
             messages = [UserMessage(content="Hello")]
             result = await provider.chat(messages, response_format="text")
 
-            assert result == "Hello from OpenAI!"
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Hello from OpenAI!"
+            assert result.tool_calls is None
 
     @pytest.mark.asyncio
     async def test_generate_json_success(self, provider):
@@ -213,7 +224,8 @@ class TestOpenAIProvider:
             messages = [UserMessage(content="Give me JSON")]
             result = await provider.chat(messages, response_format="json")
 
-            assert '{"status": "ok"}' in result
+            assert isinstance(result, AssistantMessage)
+            assert '{"status": "ok"}' in result.content
 
     @pytest.mark.asyncio
     async def test_generate_with_max_tokens(self, provider):
@@ -227,28 +239,11 @@ class TestOpenAIProvider:
             messages = [UserMessage(content="Test")]
             result = await provider.chat(messages, response_format="text", max_tokens=50)
 
-            assert result == "Short response"
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Short response"
             # Verify max_tokens was passed
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["max_tokens"] == 50
-
-    @pytest.mark.asyncio
-    async def test_generate_json_helper(self, provider):
-        """Test the generate_json() convenience method"""
-        mock_completion = MagicMock()
-        mock_completion.choices = [
-            MagicMock(message=MagicMock(content='{"name": "test", "value": 42}'))
-        ]
-
-        with patch.object(
-            provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
-        ):
-            messages = [UserMessage(content="Give me JSON")]
-            result = await provider.chat_json(messages)
-
-            assert isinstance(result, dict)
-            assert result["name"] == "test"
-            assert result["value"] == 42
 
     @pytest.mark.asyncio
     async def test_message_conversion(self, provider):

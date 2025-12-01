@@ -2,6 +2,8 @@
 OpenAI LLM provider (compatible with OpenAI API and compatible services).
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Literal, Any
 from openai import AsyncOpenAI
@@ -13,7 +15,6 @@ from casual_llm.message_converters import (
     convert_messages_to_openai,
     convert_tool_calls_from_openai,
 )
-from casual_llm.utils import extract_json_from_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class OpenAIProvider:
         response_format: Literal["json", "text"] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
-    ) -> str | AssistantMessage:
+    ) -> AssistantMessage:
         """
         Generate a chat response using OpenAI API.
 
@@ -82,8 +83,7 @@ class OpenAIProvider:
             tools: List of tools available for the LLM to call (optional)
 
         Returns:
-            If tools are provided: AssistantMessage (may contain tool_calls)
-            If no tools: String response content
+            AssistantMessage with content and optional tool_calls
 
         Raises:
             openai.OpenAIError: If request fails
@@ -119,48 +119,16 @@ class OpenAIProvider:
 
         response_message = response.choices[0].message
 
-        # If tools were provided, return AssistantMessage with potential tool calls
-        if tools:
-            tool_calls = None
-            if hasattr(response_message, "tool_calls") and response_message.tool_calls:
-                logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
-                tool_calls = convert_tool_calls_from_openai(response_message.tool_calls)
+        # Parse tool calls if present
+        tool_calls = None
+        if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+            logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+            tool_calls = convert_tool_calls_from_openai(response_message.tool_calls)
 
-            return AssistantMessage(
-                content=response_message.content,
-                tool_calls=tool_calls
-            )
-
-        # No tools - return simple string response
+        # Always return AssistantMessage
         content = response_message.content or ""
         logger.debug(f"Generated {len(content)} characters")
-        return content
-
-    async def chat_json(
-        self,
-        messages: list[ChatMessage],
-        max_tokens: int | None = None,
-    ) -> dict[str, Any]:
-        """
-        Generate and parse JSON response.
-
-        Convenience method that calls chat() with response_format="json"
-        and automatically parses the result.
-
-        Args:
-            messages: Conversation messages (ChatMessage format)
-            max_tokens: Maximum tokens to generate (optional)
-
-        Returns:
-            Parsed JSON object
-
-        Raises:
-            openai.OpenAIError: If request fails
-            json.JSONDecodeError: If response is not valid JSON
-        """
-        response = await self.chat(messages, response_format="json", max_tokens=max_tokens)
-        # Response should be a string when no tools are provided
-        if isinstance(response, str):
-            result: dict[str, Any] = extract_json_from_markdown(response)
-            return result
-        raise ValueError("chat_json cannot be used with tools")
+        return AssistantMessage(
+            content=content,
+            tool_calls=tool_calls
+        )
