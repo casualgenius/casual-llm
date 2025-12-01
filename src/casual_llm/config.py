@@ -44,7 +44,7 @@ class ModelConfig:
         >>> config = ModelConfig(
         ...     name="qwen2.5:7b-instruct",
         ...     provider=Provider.OLLAMA,
-        ...     base_url="http://localhost:11434/api/generate"
+        ...     base_url="http://localhost:11434"
         ... )
         >>>
         >>> # OpenRouter configuration (OpenAI-compatible)
