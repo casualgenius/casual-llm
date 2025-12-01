@@ -15,7 +15,7 @@ async def main():
     config = ModelConfig(
         name="qwen2.5:7b-instruct",  # Change to your preferred model
         provider=Provider.OLLAMA,
-        base_url="http://localhost:11434/api/chat",
+        base_url="http://localhost:11434",
         temperature=0.7
     )
 
@@ -28,7 +28,7 @@ async def main():
     # Generate response
     print("Generating response...")
     response = await provider.chat(messages, response_format="text")
-    print(f"Response: {response}")
+    print(f"Response: {response.content}")
 
     # Check metrics (if enabled)
     if hasattr(provider, 'get_metrics'):

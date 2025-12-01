@@ -58,7 +58,7 @@ class Tool(BaseModel):
         ... )
     """
 
-    name: str = Field(..., description="Tool name (must be valid identifier)")
+    name: str = Field(..., description="Tool name")
     description: str = Field(..., description="What the tool does")
     parameters: dict[str, ToolParameter] = Field(
         default_factory=dict,

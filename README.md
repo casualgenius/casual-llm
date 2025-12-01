@@ -2,7 +2,7 @@
 
 ![PyPI](https://img.shields.io/pypi/v/casual-llm)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 
 **Lightweight LLM provider abstraction with standardized message models.**
 
@@ -12,7 +12,7 @@ Part of the [casual-*](https://github.com/AlexStansfield/casual-mcp) ecosystem o
 
 - 🎯 **Protocol-based** - Uses `typing.Protocol`, no inheritance required
 - 🔌 **Provider-agnostic** - Works with OpenAI, Ollama, or your custom provider
-- 📦 **Lightweight** - Minimal dependencies (pydantic, httpx)
+- 📦 **Lightweight** - Minimal dependencies (pydantic, ollama)
 - 🔄 **Async-first** - Built for modern async Python
 - 🛡️ **Type-safe** - Full type hints with py.typed marker
 - 🔁 **Retry logic** - Built-in exponential backoff for transient failures
@@ -45,7 +45,7 @@ from casual_llm import create_provider, ModelConfig, Provider, UserMessage
 config = ModelConfig(
     name="qwen2.5:7b-instruct",
     provider=Provider.OLLAMA,
-    base_url="http://localhost:11434/api/generate",
+    base_url="http://localhost:11434",
     temperature=0.7
 )
 
@@ -53,14 +53,14 @@ provider = create_provider(config, max_retries=2)
 
 # Generate response
 messages = [UserMessage(content="What is the capital of France?")]
-response = await provider.generate(messages, response_format="text")
-print(response)  # "The capital of France is Paris."
+response = await provider.chat(messages, response_format="text")
+print(response.content)  # "The capital of France is Paris."
 ```
 
 ### Using OpenAI
 
 ```python
-from casual_llm import create_provider, ModelConfig, Provider
+from casual_llm import create_provider, ModelConfig, Provider, UserMessage
 
 # Create OpenAI provider
 config = ModelConfig(
@@ -74,8 +74,8 @@ provider = create_provider(config)
 
 # Generate JSON response
 messages = [UserMessage(content="List 3 colors as JSON")]
-response = await provider.generate(messages, response_format="json")
-# Returns: '{"colors": ["red", "blue", "green"]}'
+response = await provider.chat(messages, response_format="json")
+print(response.content)  # '{"colors": ["red", "blue", "green"]}'
 ```
 
 ### Using OpenAI-Compatible APIs (OpenRouter, LM Studio, etc.)
@@ -142,24 +142,25 @@ messages: list[ChatMessage] = [system_msg, user_msg, assistant_msg, tool_msg]
 Implement the `LLMProvider` protocol to add your own provider:
 
 ```python
-from casual_llm import LLMProvider, LLMMessage
-from typing import List, Literal, Optional
+from casual_llm import LLMProvider, ChatMessage, AssistantMessage, Tool
 
 class MyCustomProvider:
     """Custom LLM provider implementation."""
 
-    async def generate(
+    async def chat(
         self,
-        messages: List[LLMMessage],
+        messages: list[ChatMessage],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-    ) -> str:
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+    ) -> AssistantMessage:
         # Your implementation here
         ...
 
 # Use it like any other provider
 provider = MyCustomProvider(...)
-response = await provider.generate(messages)
+response = await provider.chat(messages)
+print(response.content)
 ```
 
 ## Advanced Usage
@@ -205,7 +206,7 @@ data = extract_json_from_markdown(response)
 
 | Feature | casual-llm | LangChain | litellm |
 |---------|-----------|-----------|---------|
-| **Dependencies** | 2 (pydantic, httpx) | 100+ | 50+ |
+| **Dependencies** | 2 (pydantic, ollama) | 100+ | 50+ |
 | **Protocol-based** | ✅ | ❌ | ❌ |
 | **Type-safe** | ✅ Full typing | Partial | Partial |
 | **Message models** | ✅ Included | ❌ Separate | ❌ |
@@ -238,12 +239,13 @@ All casual-* libraries share the same philosophy: lightweight, protocol-based, e
 #### `LLMProvider` (Protocol)
 ```python
 class LLMProvider(Protocol):
-    async def generate(
+    async def chat(
         self,
-        messages: List[LLMMessage],
+        messages: list[ChatMessage],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-    ) -> str: ...
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+    ) -> AssistantMessage: ...
 ```
 
 #### `ModelConfig`

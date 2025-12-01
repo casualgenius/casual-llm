@@ -108,6 +108,22 @@ class TestTool:
         assert tool.parameters == {}
         assert tool.required == []
 
+    def test_tool_name_flexibility(self):
+        """Test that tool names support various naming conventions."""
+        # Tool names are API strings and should support various conventions
+        valid_names = [
+            "get_weather",  # snake_case (Python style)
+            "get-weather",  # kebab-case (common in APIs)
+            "weather.get",  # dotted notation (namespaced)
+            "GetWeather",   # PascalCase
+            "getWeather",   # camelCase
+            "tool123",      # with numbers
+            "_private",     # underscore prefix
+        ]
+        for name in valid_names:
+            tool = Tool(name=name, description="Test")
+            assert tool.name == name
+
     def test_tool_with_parameters(self):
         """Test creating a tool with parameters."""
         tool = Tool(
