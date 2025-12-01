@@ -16,7 +16,7 @@ async def main():
         name="qwen2.5:7b-instruct",  # Change to your preferred model
         provider=Provider.OLLAMA,
         base_url="http://localhost:11434",
-        temperature=0.7
+        temperature=0.7,
     )
 
     # Create provider with retry logic
@@ -31,7 +31,7 @@ async def main():
     print(f"Response: {response.content}")
 
     # Check metrics (if enabled)
-    if hasattr(provider, 'get_metrics'):
+    if hasattr(provider, "get_metrics"):
         metrics = provider.get_metrics()
         print(f"\nMetrics: {metrics}")
 

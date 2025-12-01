@@ -18,7 +18,7 @@ async def main():
         name="gpt-4o-mini",
         provider=Provider.OPENAI,
         api_key=os.getenv("OPENAI_API_KEY"),  # Or hardcode (not recommended)
-        temperature=0.7
+        temperature=0.7,
     )
 
     # Create provider

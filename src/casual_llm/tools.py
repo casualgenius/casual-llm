@@ -24,9 +24,7 @@ class ToolParameter(BaseModel):
     properties: dict[str, ToolParameter] | None = Field(
         None, description="Object properties for nested objects"
     )
-    required: list[str] | None = Field(
-        None, description="Required properties for nested objects"
-    )
+    required: list[str] | None = Field(None, description="Required properties for nested objects")
     default: Any | None = Field(None, description="Default value")
 
     model_config = {"extra": "allow"}  # Allow additional JSON Schema fields
@@ -61,12 +59,10 @@ class Tool(BaseModel):
     name: str = Field(..., description="Tool name")
     description: str = Field(..., description="What the tool does")
     parameters: dict[str, ToolParameter] = Field(
-        default_factory=dict,
-        description="Tool parameters as JSON Schema properties"
+        default_factory=dict, description="Tool parameters as JSON Schema properties"
     )
     required: list[str] = Field(
-        default_factory=list,
-        description="List of required parameter names"
+        default_factory=list, description="List of required parameter names"
     )
 
     @property
@@ -82,19 +78,13 @@ class Tool(BaseModel):
         return {
             "type": "object",
             "properties": {
-                name: param.model_dump(exclude_none=True)
-                for name, param in self.parameters.items()
+                name: param.model_dump(exclude_none=True) for name, param in self.parameters.items()
             },
             "required": self.required,
         }
 
     @classmethod
-    def from_input_schema(
-        cls,
-        name: str,
-        description: str,
-        input_schema: dict[str, Any]
-    ) -> "Tool":
+    def from_input_schema(cls, name: str, description: str, input_schema: dict[str, Any]) -> "Tool":
         """
         Create a Tool from an MCP-style inputSchema.
 
@@ -118,15 +108,14 @@ class Tool(BaseModel):
         """
         properties = input_schema.get("properties", {})
         parameters = {
-            param_name: ToolParameter(**param_def)
-            for param_name, param_def in properties.items()
+            param_name: ToolParameter(**param_def) for param_name, param_def in properties.items()
         }
 
         return cls(
             name=name,
             description=description,
             parameters=parameters,
-            required=input_schema.get("required", [])
+            required=input_schema.get("required", []),
         )
 
 

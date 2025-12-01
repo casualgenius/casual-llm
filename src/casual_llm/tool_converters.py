@@ -44,8 +44,8 @@ def tool_to_ollama(tool: Tool) -> dict[str, Any]:
                     for name, param in tool.parameters.items()
                 },
                 "required": tool.required,
-            }
-        }
+            },
+        },
     }
 
 
@@ -98,8 +98,8 @@ def tool_to_openai(tool: Tool) -> dict[str, Any]:
                     for name, param in tool.parameters.items()
                 },
                 "required": tool.required,
-            }
-        }
+            },
+        },
     }
 
 
@@ -121,6 +121,7 @@ def tools_to_openai(tools: list[Tool]) -> list[dict[str, Any]]:
     """
     logger.debug(f"Converting {len(tools)} tools to OpenAI format")
     return [tool_to_openai(tool) for tool in tools]
+
 
 __all__ = [
     "tool_to_ollama",

@@ -65,8 +65,7 @@ class OllamaProvider:
         self.failure_count = 0
 
         logger.info(
-            f"OllamaProvider initialized: model={model}, "
-            f"host={host}, max_retries={max_retries}"
+            f"OllamaProvider initialized: model={model}, " f"host={host}, max_retries={max_retries}"
         )
 
     def get_metrics(self) -> dict[str, int | float]:
@@ -168,7 +167,9 @@ class OllamaProvider:
                 # Parse tool calls if present
                 tool_calls = None
                 if response_message.tool_calls:
-                    logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+                    logger.debug(
+                        f"Assistant requested {len(response_message.tool_calls)} tool calls"
+                    )
                     # Convert ollama tool calls to our format
                     tool_calls_dicts = []
                     for tc in response_message.tool_calls:
@@ -178,23 +179,22 @@ class OllamaProvider:
                             tool_call_id = f"call_{uuid.uuid4().hex[:8]}"
                             logger.debug(f"Generated tool call ID: {tool_call_id}")
 
-                        tool_calls_dicts.append({
-                            "id": tool_call_id,
-                            "type": getattr(tc, "type", "function"),
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments
+                        tool_calls_dicts.append(
+                            {
+                                "id": tool_call_id,
+                                "type": getattr(tc, "type", "function"),
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
                             }
-                        })
+                        )
                     tool_calls = convert_tool_calls_from_ollama(tool_calls_dicts)
 
                 # Always return AssistantMessage
                 content = response_message.content.strip() if response_message.content else ""
                 logger.debug(f"Generated {len(content)} characters")
-                return AssistantMessage(
-                    content=content,
-                    tool_calls=tool_calls
-                )
+                return AssistantMessage(content=content, tool_calls=tool_calls)
 
             except (ConnectionError, TimeoutError) as e:
                 # Transient errors - retry

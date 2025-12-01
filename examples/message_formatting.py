@@ -22,9 +22,7 @@ def main():
     )
 
     # User message - from the human
-    user_msg = UserMessage(
-        content="What's the weather like in Paris?"
-    )
+    user_msg = UserMessage(content="What's the weather like in Paris?")
 
     # Assistant message with tool call
     assistant_msg_with_tool = AssistantMessage(
@@ -34,11 +32,10 @@ def main():
                 id="call_abc123",
                 type="function",
                 function=AssistantToolCallFunction(
-                    name="get_weather",
-                    arguments='{"city": "Paris", "units": "celsius"}'
-                )
+                    name="get_weather", arguments='{"city": "Paris", "units": "celsius"}'
+                ),
             )
-        ]
+        ],
     )
 
     # Tool result message - result from tool execution
@@ -46,7 +43,7 @@ def main():
         role="tool",
         name="get_weather",
         tool_call_id="call_abc123",
-        content='{"temperature": 18, "condition": "partly cloudy", "humidity": 65}'
+        content='{"temperature": 18, "condition": "partly cloudy", "humidity": 65}',
     )
 
     # Assistant message with final answer

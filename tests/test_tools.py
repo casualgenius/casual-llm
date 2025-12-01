@@ -1,6 +1,5 @@
 """Tests for tool models and converters."""
 
-import pytest
 from casual_llm.tools import Tool, ToolParameter
 from casual_llm.tool_converters import (
     tool_to_ollama,
@@ -15,10 +14,7 @@ class TestToolParameter:
 
     def test_simple_parameter(self):
         """Test creating a simple string parameter."""
-        param = ToolParameter(
-            type="string",
-            description="A test parameter"
-        )
+        param = ToolParameter(type="string", description="A test parameter")
         assert param.type == "string"
         assert param.description == "A test parameter"
         assert param.enum is None
@@ -26,9 +22,7 @@ class TestToolParameter:
     def test_enum_parameter(self):
         """Test creating a parameter with enum values."""
         param = ToolParameter(
-            type="string",
-            description="Temperature units",
-            enum=["celsius", "fahrenheit"]
+            type="string", description="Temperature units", enum=["celsius", "fahrenheit"]
         )
         assert param.enum == ["celsius", "fahrenheit"]
 
@@ -39,9 +33,9 @@ class TestToolParameter:
             description="A location object",
             properties={
                 "city": ToolParameter(type="string"),
-                "country": ToolParameter(type="string")
+                "country": ToolParameter(type="string"),
             },
-            required=["city"]
+            required=["city"],
         )
         assert param.type == "object"
         assert "city" in param.properties
@@ -49,30 +43,18 @@ class TestToolParameter:
 
     def test_array_parameter(self):
         """Test creating an array parameter."""
-        param = ToolParameter(
-            type="array",
-            description="List of items",
-            items={"type": "string"}
-        )
+        param = ToolParameter(type="array", description="List of items", items={"type": "string"})
         assert param.type == "array"
         assert param.items == {"type": "string"}
 
     def test_parameter_with_default(self):
         """Test parameter with default value."""
-        param = ToolParameter(
-            type="string",
-            description="Format",
-            default="json"
-        )
+        param = ToolParameter(type="string", description="Format", default="json")
         assert param.default == "json"
 
     def test_parameter_serialization(self):
         """Test parameter can be serialized without None values."""
-        param = ToolParameter(
-            type="string",
-            description="Test",
-            enum=["a", "b"]
-        )
+        param = ToolParameter(type="string", description="Test", enum=["a", "b"])
         dumped = param.model_dump(exclude_none=True)
         assert "default" not in dumped
         assert "items" not in dumped
@@ -82,11 +64,7 @@ class TestToolParameter:
     def test_extra_fields_allowed(self):
         """Test that extra JSON Schema fields are allowed."""
         param = ToolParameter(
-            type="string",
-            description="Test",
-            minLength=1,
-            maxLength=100,
-            pattern="^[a-z]+$"
+            type="string", description="Test", minLength=1, maxLength=100, pattern="^[a-z]+$"
         )
         dumped = param.model_dump(exclude_none=True)
         assert dumped["minLength"] == 1
@@ -99,10 +77,7 @@ class TestTool:
 
     def test_simple_tool(self):
         """Test creating a simple tool with no parameters."""
-        tool = Tool(
-            name="get_time",
-            description="Get current time"
-        )
+        tool = Tool(name="get_time", description="Get current time")
         assert tool.name == "get_time"
         assert tool.description == "Get current time"
         assert tool.parameters == {}
@@ -115,10 +90,10 @@ class TestTool:
             "get_weather",  # snake_case (Python style)
             "get-weather",  # kebab-case (common in APIs)
             "weather.get",  # dotted notation (namespaced)
-            "GetWeather",   # PascalCase
-            "getWeather",   # camelCase
-            "tool123",      # with numbers
-            "_private",     # underscore prefix
+            "GetWeather",  # PascalCase
+            "getWeather",  # camelCase
+            "tool123",  # with numbers
+            "_private",  # underscore prefix
         ]
         for name in valid_names:
             tool = Tool(name=name, description="Test")
@@ -130,17 +105,12 @@ class TestTool:
             name="get_weather",
             description="Get weather for a location",
             parameters={
-                "location": ToolParameter(
-                    type="string",
-                    description="City name"
-                ),
+                "location": ToolParameter(type="string", description="City name"),
                 "units": ToolParameter(
-                    type="string",
-                    description="Temperature units",
-                    enum=["celsius", "fahrenheit"]
-                )
+                    type="string", description="Temperature units", enum=["celsius", "fahrenheit"]
+                ),
             },
-            required=["location"]
+            required=["location"],
         )
         assert len(tool.parameters) == 2
         assert "location" in tool.parameters
@@ -153,17 +123,10 @@ class TestTool:
             name="search",
             description="Search for items",
             parameters={
-                "query": ToolParameter(
-                    type="string",
-                    description="Search query"
-                ),
-                "limit": ToolParameter(
-                    type="number",
-                    description="Max results",
-                    default=10
-                )
+                "query": ToolParameter(type="string", description="Search query"),
+                "limit": ToolParameter(type="number", description="Max results", default=10),
             },
-            required=["query"]
+            required=["query"],
         )
 
         schema = tool.input_schema
@@ -179,22 +142,14 @@ class TestTool:
         input_schema = {
             "type": "object",
             "properties": {
-                "city": {
-                    "type": "string",
-                    "description": "City name"
-                },
-                "country": {
-                    "type": "string",
-                    "description": "Country code"
-                }
+                "city": {"type": "string", "description": "City name"},
+                "country": {"type": "string", "description": "Country code"},
             },
-            "required": ["city"]
+            "required": ["city"],
         }
 
         tool = Tool.from_input_schema(
-            name="get_weather",
-            description="Get weather data",
-            input_schema=input_schema
+            name="get_weather", description="Get weather data", input_schema=input_schema
         )
 
         assert tool.name == "get_weather"
@@ -206,11 +161,7 @@ class TestTool:
 
     def test_from_input_schema_minimal(self):
         """Test from_input_schema with minimal schema."""
-        tool = Tool.from_input_schema(
-            name="ping",
-            description="Ping test",
-            input_schema={}
-        )
+        tool = Tool.from_input_schema(name="ping", description="Ping test", input_schema={})
         assert tool.name == "ping"
         assert tool.parameters == {}
         assert tool.required == []
@@ -222,16 +173,14 @@ class TestTool:
             description="Test tool",
             parameters={
                 "param1": ToolParameter(type="string", description="First param"),
-                "param2": ToolParameter(type="number", default=5)
+                "param2": ToolParameter(type="number", default=5),
             },
-            required=["param1"]
+            required=["param1"],
         )
 
         schema = original_tool.input_schema
         reconstructed = Tool.from_input_schema(
-            name="test",
-            description="Test tool",
-            input_schema=schema
+            name="test", description="Test tool", input_schema=schema
         )
 
         assert reconstructed.name == original_tool.name
@@ -245,10 +194,7 @@ class TestOllamaConverters:
 
     def test_tool_to_ollama_simple(self):
         """Test converting a simple tool to Ollama format."""
-        tool = Tool(
-            name="get_time",
-            description="Get current time"
-        )
+        tool = Tool(name="get_time", description="Get current time")
 
         ollama_tool = tool_to_ollama(tool)
 
@@ -266,9 +212,9 @@ class TestOllamaConverters:
             description="Search items",
             parameters={
                 "query": ToolParameter(type="string", description="Search query"),
-                "limit": ToolParameter(type="number", default=10)
+                "limit": ToolParameter(type="number", default=10),
             },
-            required=["query"]
+            required=["query"],
         )
 
         ollama_tool = tool_to_ollama(tool)
@@ -284,7 +230,7 @@ class TestOllamaConverters:
         """Test converting multiple tools to Ollama format."""
         tools = [
             Tool(name="tool1", description="First tool"),
-            Tool(name="tool2", description="Second tool")
+            Tool(name="tool2", description="Second tool"),
         ]
 
         ollama_tools = tools_to_ollama(tools)
@@ -303,10 +249,7 @@ class TestOpenAIConverters:
 
     def test_tool_to_openai_simple(self):
         """Test converting a simple tool to OpenAI format."""
-        tool = Tool(
-            name="get_time",
-            description="Get current time"
-        )
+        tool = Tool(name="get_time", description="Get current time")
 
         openai_tool = tool_to_openai(tool)
 
@@ -324,27 +267,31 @@ class TestOpenAIConverters:
             description="Perform calculation",
             parameters={
                 "operation": ToolParameter(
-                    type="string",
-                    enum=["add", "subtract", "multiply", "divide"]
+                    type="string", enum=["add", "subtract", "multiply", "divide"]
                 ),
                 "a": ToolParameter(type="number"),
-                "b": ToolParameter(type="number")
+                "b": ToolParameter(type="number"),
             },
-            required=["operation", "a", "b"]
+            required=["operation", "a", "b"],
         )
 
         openai_tool = tool_to_openai(tool)
 
         params = openai_tool["function"]["parameters"]
         assert len(params["properties"]) == 3
-        assert params["properties"]["operation"]["enum"] == ["add", "subtract", "multiply", "divide"]
+        assert params["properties"]["operation"]["enum"] == [
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+        ]
         assert params["required"] == ["operation", "a", "b"]
 
     def test_tools_to_openai(self):
         """Test converting multiple tools to OpenAI format."""
         tools = [
             Tool(name="tool1", description="First tool"),
-            Tool(name="tool2", description="Second tool")
+            Tool(name="tool2", description="Second tool"),
         ]
 
         openai_tools = tools_to_openai(tools)
@@ -362,10 +309,8 @@ class TestOpenAIConverters:
         tool = Tool(
             name="test",
             description="Test tool",
-            parameters={
-                "param": ToolParameter(type="string")
-            },
-            required=["param"]
+            parameters={"param": ToolParameter(type="string")},
+            required=["param"],
         )
 
         openai_tool = tool_to_openai(tool)

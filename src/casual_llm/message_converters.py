@@ -9,7 +9,6 @@ from typing import Any
 
 from casual_llm.messages import (
     ChatMessage,
-    AssistantMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
 )
@@ -56,37 +55,35 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
                 if msg.tool_calls:
                     tool_calls = []
                     for tool_call in msg.tool_calls:
-                        tool_calls.append({
-                            "id": tool_call.id,
-                            "type": tool_call.type,
-                            "function": {
-                                "name": tool_call.function.name,
-                                "arguments": tool_call.function.arguments
+                        tool_calls.append(
+                            {
+                                "id": tool_call.id,
+                                "type": tool_call.type,
+                                "function": {
+                                    "name": tool_call.function.name,
+                                    "arguments": tool_call.function.arguments,
+                                },
                             }
-                        })
+                        )
                     message["tool_calls"] = tool_calls
 
                 openai_messages.append(message)
 
             case "system":
-                openai_messages.append({
-                    "role": "system",
-                    "content": msg.content
-                })
+                openai_messages.append({"role": "system", "content": msg.content})
 
             case "tool":
-                openai_messages.append({
-                    "role": "tool",
-                    "content": msg.content,
-                    "tool_call_id": msg.tool_call_id,
-                    "name": msg.name
-                })
+                openai_messages.append(
+                    {
+                        "role": "tool",
+                        "content": msg.content,
+                        "tool_call_id": msg.tool_call_id,
+                        "name": msg.name,
+                    }
+                )
 
             case "user":
-                openai_messages.append({
-                    "role": "user",
-                    "content": msg.content
-                })
+                openai_messages.append({"role": "user", "content": msg.content})
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")
@@ -145,9 +142,8 @@ def convert_tool_calls_from_openai(
             id=tool.id,
             type="function",
             function=AssistantToolCallFunction(
-                name=tool.function.name,
-                arguments=tool.function.arguments
-            )
+                name=tool.function.name, arguments=tool.function.arguments
+            ),
         )
         tool_calls.append(tool_call)
 
@@ -183,9 +179,8 @@ def convert_tool_calls_from_ollama(
             id=tool["id"],
             type=tool.get("type", "function"),
             function=AssistantToolCallFunction(
-                name=tool["function"]["name"],
-                arguments=tool["function"]["arguments"]
-            )
+                name=tool["function"]["name"], arguments=tool["function"]["arguments"]
+            ),
         )
         tool_calls.append(tool_call)
 

@@ -136,7 +136,4 @@ class OpenAIProvider:
         # Always return AssistantMessage
         content = response_message.content or ""
         logger.debug(f"Generated {len(content)} characters")
-        return AssistantMessage(
-            content=content,
-            tool_calls=tool_calls
-        )
+        return AssistantMessage(content=content, tool_calls=tool_calls)

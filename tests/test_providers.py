@@ -4,7 +4,6 @@ Tests for LLM provider implementations.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from ollama import ResponseError, RequestError
 from casual_llm.config import ModelConfig, Provider
 from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
