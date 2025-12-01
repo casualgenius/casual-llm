@@ -188,20 +188,6 @@ print(metrics)
 # {'success_count': 42, 'failure_count': 3, 'success_rate_percent': 93.33}
 ```
 
-### JSON Extraction Utilities
-
-```python
-from casual_llm import extract_json_from_markdown
-
-# Handles responses wrapped in markdown code blocks
-response = '''```json
-{"name": "Alice", "age": 30}
-```'''
-
-data = extract_json_from_markdown(response)
-# {'name': 'Alice', 'age': 30}
-```
-
 ## Why casual-llm?
 
 | Feature | casual-llm | LangChain | litellm |

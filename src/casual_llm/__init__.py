@@ -50,9 +50,6 @@ from casual_llm.message_converters import (
     convert_tool_calls_from_ollama,
 )
 
-# Utilities
-from casual_llm.utils import extract_json_from_markdown
-
 __all__ = [
     # Version
     "__version__",
@@ -83,6 +80,4 @@ __all__ = [
     "convert_messages_to_ollama",
     "convert_tool_calls_from_openai",
     "convert_tool_calls_from_ollama",
-    # Utils
-    "extract_json_from_markdown",
 ]

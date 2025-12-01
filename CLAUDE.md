@@ -211,7 +211,6 @@ Located in `src/casual_llm/providers/__init__.py`:
 - Configuration (ModelConfig, Provider)
 - `create_provider()` factory
 - Message and tool converters
-- Utilities like `extract_json_from_markdown()`
 
 **Internal API** (not exported):
 - Provider implementation details
