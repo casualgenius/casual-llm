@@ -179,6 +179,59 @@ class TestOllamaProvider:
             assert metrics["success_count"] == 1
             assert metrics["failure_count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_temperature_override(self, provider):
+        """Test that per-call temperature overrides instance temperature"""
+        # Provider was created with temperature=0.7
+        assert provider.temperature == 0.7
+
+        mock_response = MagicMock()
+        mock_response.message.content = "Response"
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Test")]
+
+            # Call with overridden temperature
+            await provider.chat(messages, temperature=0.1)
+
+            # Verify the temperature passed to Ollama
+            call_kwargs = mock_chat.call_args.kwargs
+            assert call_kwargs["options"]["temperature"] == 0.1
+
+            # Call without override - should use instance temperature
+            await provider.chat(messages)
+            call_kwargs = mock_chat.call_args.kwargs
+            assert call_kwargs["options"]["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_temperature_none_not_sent(self):
+        """Test that temperature is not sent to API when None"""
+        # Create provider without temperature (defaults to None)
+        provider = OllamaProvider(
+            model="test-model",
+            host="http://localhost:11434",
+        )
+        assert provider.temperature is None
+
+        mock_response = MagicMock()
+        mock_response.message.content = "Response"
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Test")]
+
+            # Call without temperature - should not include it in options
+            await provider.chat(messages)
+
+            # Verify temperature was NOT included in options
+            call_kwargs = mock_chat.call_args.kwargs
+            assert "temperature" not in call_kwargs["options"]
+
 
 @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
 class TestOpenAIProvider:
@@ -271,6 +324,57 @@ class TestOpenAIProvider:
             assert chat_messages[0]["content"] == "You are helpful"
             assert chat_messages[1]["role"] == "user"
             assert chat_messages[2]["role"] == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_temperature_override(self, provider):
+        """Test that per-call temperature overrides instance temperature"""
+        # Provider was created with temperature=0.7
+        assert provider.temperature == 0.7
+
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Test")]
+
+            # Call with overridden temperature
+            await provider.chat(messages, temperature=0.1)
+
+            # Verify the temperature passed to OpenAI
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.1
+
+            # Call without override - should use instance temperature
+            await provider.chat(messages)
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_temperature_none_not_sent(self):
+        """Test that temperature is not sent to API when None"""
+        # Create provider without temperature (defaults to None)
+        provider = OpenAIProvider(
+            model="gpt-4o-mini",
+            api_key="sk-test-key",
+        )
+        assert provider.temperature is None
+
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Test")]
+
+            # Call without temperature - should not include it in request
+            await provider.chat(messages)
+
+            # Verify temperature was NOT included in request
+            call_kwargs = mock_create.call_args.kwargs
+            assert "temperature" not in call_kwargs
 
 
 class TestCreateProviderFactory:

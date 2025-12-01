@@ -34,7 +34,7 @@ class OllamaProvider:
         self,
         model: str,
         host: str = "http://localhost:11434",
-        temperature: float = 0.2,
+        temperature: float | None = None,
         timeout: float = 60.0,
         max_retries: int = 0,
         enable_metrics: bool = False,
@@ -45,7 +45,7 @@ class OllamaProvider:
         Args:
             model: Model name (e.g., "qwen2.5:7b-instruct")
             host: Ollama server URL (e.g., "http://localhost:11434")
-            temperature: Temperature for generation (0.0-1.0)
+            temperature: Temperature for generation (0.0-1.0, optional - uses Ollama default if not set)
             timeout: HTTP request timeout in seconds
             max_retries: Number of retries for transient failures (default: 0)
             enable_metrics: Track success/failure metrics (default: False)
@@ -95,6 +95,7 @@ class OllamaProvider:
         response_format: Literal["json", "text"] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
+        temperature: float | None = None,
     ) -> AssistantMessage:
         """
         Generate a chat response using Ollama.
@@ -104,6 +105,7 @@ class OllamaProvider:
             response_format: "json" for structured output, "text" for plain text
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
+            temperature: Temperature for this request (optional, overrides instance temperature)
 
         Returns:
             AssistantMessage with content and optional tool_calls
@@ -116,8 +118,13 @@ class OllamaProvider:
         chat_messages = convert_messages_to_ollama(messages)
         logger.debug(f"Converted {len(messages)} messages to Ollama format")
 
+        # Use provided temperature or fall back to instance temperature
+        temp = temperature if temperature is not None else self.temperature
+
         # Build options
-        options: dict[str, Any] = {"temperature": self.temperature}
+        options: dict[str, Any] = {}
+        if temp is not None:
+            options["temperature"] = temp
         if max_tokens:
             options["num_predict"] = max_tokens
 

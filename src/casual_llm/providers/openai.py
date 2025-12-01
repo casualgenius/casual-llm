@@ -32,7 +32,7 @@ class OpenAIProvider:
         api_key: str | None = None,
         base_url: str | None = None,
         organization: str | None = None,
-        temperature: float = 0.2,
+        temperature: float | None = None,
         timeout: float = 60.0,
         extra_kwargs: dict[str, Any] | None = None,
     ):
@@ -44,7 +44,7 @@ class OpenAIProvider:
             api_key: API key (optional, can use OPENAI_API_KEY env var)
             base_url: Base URL for API (e.g., "https://openrouter.ai/api/v1")
             organization: OpenAI organization ID (optional)
-            temperature: Temperature for generation (0.0-1.0)
+            temperature: Temperature for generation (0.0-1.0, optional - uses OpenAI default if not set)
             timeout: HTTP request timeout in seconds
             extra_kwargs: Additional kwargs to pass to client.chat.completions.create()
         """
@@ -72,6 +72,7 @@ class OpenAIProvider:
         response_format: Literal["json", "text"] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
+        temperature: float | None = None,
     ) -> AssistantMessage:
         """
         Generate a chat response using OpenAI API.
@@ -81,6 +82,7 @@ class OpenAIProvider:
             response_format: "json" for structured output, "text" for plain text
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
+            temperature: Temperature for this request (optional, overrides instance temperature)
 
         Returns:
             AssistantMessage with content and optional tool_calls
@@ -92,12 +94,18 @@ class OpenAIProvider:
         chat_messages = convert_messages_to_openai(messages)
         logger.debug(f"Converted {len(messages)} messages to OpenAI format")
 
+        # Use provided temperature or fall back to instance temperature
+        temp = temperature if temperature is not None else self.temperature
+
         # Build request kwargs
         request_kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": chat_messages,
-            "temperature": self.temperature,
         }
+
+        # Only add temperature if specified
+        if temp is not None:
+            request_kwargs["temperature"] = temp
 
         if response_format == "json":
             request_kwargs["response_format"] = {"type": "json_object"}

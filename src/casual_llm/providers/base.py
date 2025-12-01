@@ -39,6 +39,7 @@ class LLMProvider(Protocol):
         response_format: Literal["json", "text"] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
+        temperature: float | None = None,
     ) -> AssistantMessage:
         """
         Generate a chat response from the LLM.
@@ -48,6 +49,7 @@ class LLMProvider(Protocol):
             response_format: Expected response format ("json" or "text")
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
+            temperature: Temperature for this request (optional, overrides instance temperature)
 
         Returns:
             AssistantMessage with content and optional tool_calls

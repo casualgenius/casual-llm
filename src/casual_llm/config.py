@@ -28,7 +28,7 @@ class ModelConfig:
         provider: Provider type (OPENAI or OLLAMA)
         base_url: Optional custom API endpoint
         api_key: Optional API key (for OpenAI/compatible providers)
-        temperature: Sampling temperature (0.0-1.0, default: 0.1)
+        temperature: Sampling temperature (0.0-1.0, optional - uses provider default if not set)
 
     Examples:
         >>> from casual_llm import ModelConfig, Provider
@@ -60,4 +60,4 @@ class ModelConfig:
     provider: Provider
     base_url: str | None = None
     api_key: str | None = None
-    temperature: float = 0.1
+    temperature: float | None = None

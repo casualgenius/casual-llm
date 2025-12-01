@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Key Design Principles
 
-1. **Lightweight** - Minimal dependencies (pydantic, httpx)
+1. **Lightweight** - Minimal dependencies (pydantic, ollama)
 2. **Protocol-based** - Uses `typing.Protocol`, no inheritance required
-3. **Type-safe** - Full type hints with py.typed marker
+3. **Type-safe** - Full type hints with py.typed marker (Python 3.10+)
 4. **OpenAI-compatible** - Standard message format used across the industry
 5. **Async-first** - Built for modern async Python
+6. **Tool calling** - First-class support for function/tool calling
 
 ### Repository Structure
 
@@ -21,19 +22,27 @@ casual-llm/
 ├── src/casual_llm/              # Main package
 │   ├── __init__.py              # Public API exports (main entry point)
 │   ├── messages.py              # OpenAI-compatible message models
+│   ├── tools.py                 # Tool and ToolParameter models
+│   ├── config.py                # ModelConfig and Provider enum
+│   ├── message_converters.py    # Message format converters
+│   ├── tool_converters.py       # Tool format converters
 │   ├── utils.py                 # JSON extraction utilities
 │   ├── py.typed                 # PEP 561 type marker
 │   └── providers/               # Provider implementations
 │       ├── __init__.py          # Provider exports + create_provider() factory
-│       ├── base.py              # LLMProvider protocol + ModelConfig
+│       ├── base.py              # LLMProvider protocol
 │       ├── ollama.py            # OllamaProvider (with retry logic)
 │       └── openai.py            # OpenAIProvider (optional dependency)
 ├── tests/                       # Test suite
-│   └── test_messages.py         # Message model tests
+│   ├── test_messages.py         # Message model tests
+│   ├── test_tools.py            # Tool model tests
+│   └── test_providers.py        # Provider tests
 ├── examples/                    # Working examples
 │   ├── basic_ollama.py          # Ollama usage
 │   ├── basic_openai.py          # OpenAI usage
-│   └── message_formatting.py    # All message types demo
+│   ├── message_formatting.py    # All message types demo
+│   ├── tool_definitions.py      # Tool definition examples
+│   └── tool_calling.py          # Complete tool calling workflow
 └── docs/                        # Documentation (future)
 ```
 
@@ -42,6 +51,13 @@ casual-llm/
 ## Development Workflow
 
 This project uses **[uv](https://github.com/astral-sh/uv)** for dependency management (not pip/poetry).
+
+### Python Version
+
+- **Minimum**: Python 3.10
+- **Recommended**: Python 3.11 or 3.12
+- Uses modern type hints (`list[X]`, `dict[K,V]`, `X | Y`)
+- Uses `from __future__ import annotations` where beneficial
 
 ### Setup
 
@@ -72,8 +88,14 @@ uv run pytest tests/test_messages.py::test_user_message -v
 # Message formatting example (no external dependencies)
 uv run python examples/message_formatting.py
 
+# Tool definitions example
+uv run python examples/tool_definitions.py
+
 # Ollama example (requires Ollama running locally)
 uv run python examples/basic_ollama.py
+
+# Tool calling example (requires Ollama running locally)
+uv run python examples/tool_calling.py
 
 # OpenAI example (requires OPENAI_API_KEY env var)
 uv run python examples/basic_openai.py
@@ -111,33 +133,65 @@ OpenAI-compatible Pydantic models for LLM conversations:
 - `SystemMessage` - System prompt that sets behavior
 - `ToolResultMessage` - Result from tool/function execution
 - `AssistantToolCall` - Tool call structure
+- `AssistantToolCallFunction` - Function details within a tool call
 - `ChatMessage` - Type alias for any message type
 
 **Important**: These were moved from `casual-mcp` to create a single source of truth for message models across the casual-* ecosystem.
 
-### 2. Provider Protocol (`src/casual_llm/providers/base.py`)
+### 2. Tool Models (`src/casual_llm/tools.py`)
+
+Models for defining LLM function calling tools:
+
+- `Tool` - Tool definition with name, description, parameters, and required fields
+- `ToolParameter` - JSON Schema-based parameter definition
+
+**Design**: Tool names are flexible strings (not restricted to Python identifiers) to support various naming conventions (snake_case, kebab-case, dotted notation).
+
+### 3. Provider Protocol (`src/casual_llm/providers/base.py`)
 
 - `LLMProvider` - Protocol defining the interface for all providers
-- `LLMMessage` - Simple message format for internal use
-- `ModelConfig` - Configuration dataclass for models
-- `Provider` - Enum (OPENAI, OLLAMA)
+- The protocol defines a single `chat()` method that returns `AssistantMessage`
 
 **Key Design**: Uses `typing.Protocol` so custom providers don't need to inherit from a base class.
 
-### 3. Provider Implementations
+### 4. Configuration (`src/casual_llm/config.py`)
+
+- `ModelConfig` - Dataclass for model configuration
+- `Provider` - Enum (OPENAI, OLLAMA)
+
+### 5. Provider Implementations
 
 **OllamaProvider** (`src/casual_llm/providers/ollama.py`):
-- Connects to local Ollama server
+- Uses the official `ollama` Python library with `AsyncClient`
 - Built-in retry logic with exponential backoff
 - Optional metrics tracking (success/failure counts)
 - Supports both JSON and text response formats
+- Supports tool calling
+- Generates unique tool call IDs if Ollama doesn't provide them
 
 **OpenAIProvider** (`src/casual_llm/providers/openai.py`):
 - Works with OpenAI API and compatible services (OpenRouter, etc.)
-- Optional dependency (`pip install casual-llm[openai]`)
+- Optional dependency (`uv add casual-llm[openai]`)
 - Async-first using `AsyncOpenAI` client
+- Supports tool calling
 
-### 4. Factory Function (`create_provider()`)
+### 6. Converters
+
+**Message Converters** (`src/casual_llm/message_converters.py`):
+- `convert_messages_to_openai()` - Convert ChatMessage list to OpenAI format
+- `convert_messages_to_ollama()` - Convert ChatMessage list to Ollama format
+- `convert_tool_calls_from_openai()` - Parse OpenAI tool calls
+- `convert_tool_calls_from_ollama()` - Parse Ollama tool calls
+
+**Tool Converters** (`src/casual_llm/tool_converters.py`):
+- `tool_to_ollama()` - Convert Tool to Ollama format
+- `tools_to_ollama()` - Convert multiple tools
+- `tool_to_openai()` - Convert Tool to OpenAI format
+- `tools_to_openai()` - Convert multiple tools
+
+**Note**: OpenAI and Ollama use the same tool format, so the converters share implementation.
+
+### 7. Factory Function (`create_provider()`)
 
 Located in `src/casual_llm/providers/__init__.py`:
 - Creates provider instances from `ModelConfig`
@@ -151,9 +205,12 @@ Located in `src/casual_llm/providers/__init__.py`:
 ### Public vs Private
 
 **Public API** (exported from `src/casual_llm/__init__.py`):
-- All message models
+- All message models (UserMessage, AssistantMessage, etc.)
+- All tool models (Tool, ToolParameter)
 - Provider protocol and implementations
+- Configuration (ModelConfig, Provider)
 - `create_provider()` factory
+- Message and tool converters
 - Utilities like `extract_json_from_markdown()`
 
 **Internal API** (not exported):
@@ -165,15 +222,35 @@ Located in `src/casual_llm/providers/__init__.py`:
 - **Always** include type hints on all public APIs
 - Use `typing.Protocol` for interfaces
 - Use `TypeAlias` for type aliases (e.g., `ChatMessage`)
-- Include `Optional[X]` for optional parameters
+- Use modern Python 3.10+ syntax: `list[X]`, `dict[K, V]`, `X | None`
 - Use `Literal` for string enums (e.g., `Literal["json", "text"]`)
+- Add `from __future__ import annotations` when needed for forward references
 
 ### Async Patterns
 
-- All LLM operations are async (`async def generate()`)
-- Use `httpx.AsyncClient` (not `requests`)
-- Use `async with` for context managers
+- All LLM operations are async (`async def chat()`)
+- OllamaProvider uses `ollama.AsyncClient`
+- OpenAIProvider uses `openai.AsyncOpenAI`
 - Test async functions with `pytest-asyncio`
+
+### Method Signatures
+
+The core method is `chat()`:
+
+```python
+async def chat(
+    self,
+    messages: list[ChatMessage],
+    response_format: Literal["json", "text"] = "text",
+    max_tokens: int | None = None,
+    tools: list[Tool] | None = None,
+) -> AssistantMessage:
+    """
+    Generate a chat response from the LLM.
+
+    Always returns AssistantMessage (not str).
+    """
+```
 
 ---
 
@@ -184,19 +261,28 @@ Located in `src/casual_llm/providers/__init__.py`:
 1. **Create provider file**: `src/casual_llm/providers/your_provider.py`
 
 ```python
-from typing import List, Literal, Optional
-from casual_llm.providers.base import LLMMessage
+from __future__ import annotations
+
+from typing import Literal
+from casual_llm.messages import ChatMessage, AssistantMessage
+from casual_llm.tools import Tool
 
 class YourProvider:
     """Your provider implementation."""
 
-    async def generate(
+    async def chat(
         self,
-        messages: List[LLMMessage],
+        messages: list[ChatMessage],
         response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-    ) -> str:
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+    ) -> AssistantMessage:
         # Implementation here
+        # 1. Convert messages using message_converters
+        # 2. Convert tools using tool_converters (if tools provided)
+        # 3. Call your LLM API
+        # 4. Parse response including tool_calls if present
+        # 5. Return AssistantMessage
         ...
 ```
 
@@ -230,8 +316,9 @@ ChatMessage: TypeAlias = (
 )
 ```
 
-3. **Add tests** to `tests/test_messages.py`
-4. **Update examples** if relevant
+3. **Update message converters** to handle the new type
+4. **Add tests** to `tests/test_messages.py`
+5. **Update examples** if relevant
 
 ### Updating Dependencies
 
@@ -255,9 +342,9 @@ Then run `uv sync` to update lock file.
 
 ### Test Structure
 
-- One test file per module: `test_messages.py`, `test_providers.py`, etc.
+- One test file per module: `test_messages.py`, `test_providers.py`, `test_tools.py`
 - Use descriptive test names: `test_user_message_with_none_content()`
-- Group related tests with comments or classes
+- Group related tests with classes (e.g., `TestOllamaProvider`)
 
 ### What to Test
 
@@ -267,17 +354,34 @@ Then run `uv sync` to update lock file.
 - Type aliases work correctly
 - Edge cases (None values, empty lists, etc.)
 
+**Tool Models**:
+- Parameter definitions
+- Nested objects and arrays
+- Tool name flexibility (various naming conventions)
+- `input_schema` property
+- `from_input_schema()` class method
+
 **Providers**:
-- Mock external APIs (httpx, OpenAI client)
+- Mock external APIs (ollama.AsyncClient, openai.AsyncOpenAI)
 - Test both JSON and text response formats
+- Test tool calling (with and without tools)
 - Test error handling
 - Test retry logic (OllamaProvider)
+- Always verify returned type is AssistantMessage
+
+**Converters**:
+- Message conversion to/from provider formats
+- Tool conversion to provider formats
+- Tool call parsing from provider responses
 
 ### Running Specific Tests
 
 ```bash
 # Single test function
 uv run pytest tests/test_messages.py::test_user_message -v
+
+# Single test class
+uv run pytest tests/test_providers.py::TestOllamaProvider -v
 
 # Single test file
 uv run pytest tests/test_messages.py -v
@@ -293,7 +397,7 @@ uv run pytest tests/ -v -s
 ### Core Dependencies (Required)
 
 - `pydantic>=2.0.0` - Data validation and models
-- `httpx>=0.27.0` - Async HTTP client
+- `ollama>=0.6.1` - Official Ollama Python library
 
 ### Optional Dependencies
 
@@ -354,15 +458,15 @@ uv run twine upload dist/*
 
 ### Relationship to casual-mcp
 
-**casual-llm** provides the foundational message models and provider abstractions that **casual-mcp** builds upon:
+**casual-llm** provides the foundational message models, tool models, and provider abstractions that **casual-mcp** builds upon:
 
 ```
-casual-mcp (orchestration, tool calling)
+casual-mcp (orchestration, MCP server integration)
     ↓ depends on
-casual-llm (providers, messages)
+casual-llm (providers, messages, tools)
 ```
 
-**Important**: Message models were moved FROM casual-mcp TO casual-llm to create a single source of truth. casual-mcp should re-export them for backwards compatibility.
+**Important**: Message and tool models were moved FROM casual-mcp TO casual-llm to create a single source of truth. casual-mcp should re-export them for backwards compatibility.
 
 ### Future: casual-memory
 
@@ -410,6 +514,19 @@ uv run pytest --version
 uv run pytest tests/ -v -s
 ```
 
+### Ollama Connection Issues
+
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Start Ollama if needed
+ollama serve
+
+# Pull a model
+ollama pull qwen2.5:7b-instruct
+```
+
 ---
 
 ## Code Style
@@ -419,14 +536,31 @@ uv run pytest tests/ -v -s
 ```python
 # Standard library
 import logging
-from typing import List, Optional
+import uuid
+from typing import Any, Literal
 
 # Third-party
-import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from ollama import AsyncClient
 
 # Local
-from casual_llm.providers.base import LLMMessage
+from casual_llm.messages import ChatMessage, AssistantMessage
+from casual_llm.tools import Tool
+```
+
+### Type Hints
+
+Use modern Python 3.10+ syntax:
+
+```python
+# ✅ Correct (Python 3.10+)
+def process(items: list[str]) -> dict[str, int]:
+    ...
+
+# ❌ Old style (avoid)
+from typing import List, Dict
+def process(items: List[str]) -> Dict[str, int]:
+    ...
 ```
 
 ### Logging
@@ -436,8 +570,11 @@ import logging
 
 logger = logging.getLogger(__name__)  # ✅ Correct
 
-# ❌ Wrong (old "dixie" pattern from ai-assistant)
-logger = logging.getLogger("dixie.casual_llm.module")
+# Use lazy formatting for performance
+logger.debug("Processing %d messages", len(messages))
+
+# ❌ Avoid f-strings in logging (evaluates even if logging disabled)
+logger.debug(f"Processing {len(messages)} messages")
 ```
 
 ### Docstrings
@@ -448,6 +585,8 @@ Use Google-style docstrings:
 def create_provider(
     model_config: ModelConfig,
     timeout: float = 60.0,
+    max_retries: int = 0,
+    enable_metrics: bool = False,
 ) -> LLMProvider:
     """
     Factory function to create an LLM provider.
@@ -455,12 +594,15 @@ def create_provider(
     Args:
         model_config: Model configuration with provider details
         timeout: HTTP timeout in seconds (default: 60.0)
+        max_retries: Number of retry attempts for transient failures
+        enable_metrics: Enable metrics tracking (Ollama only)
 
     Returns:
         Configured LLM provider instance
 
     Raises:
         ValueError: If provider type is not supported
+        ImportError: If openai package is not installed for OpenAI provider
 
     Examples:
         >>> config = ModelConfig(name="gpt-4", provider=Provider.OPENAI)
@@ -478,19 +620,29 @@ Once published to PyPI:
 - Don't remove public APIs without deprecation period
 - Don't change function signatures (add optional params only)
 - Don't change message model field names
+- Don't change return types
 - Document breaking changes in CHANGELOG.md
 
 ### Keep It Lightweight
 
 - Avoid adding dependencies unless absolutely necessary
-- Keep optional dependencies optional
+- Keep optional dependencies optional (e.g., openai)
 - Don't add features that belong in casual-mcp or casual-memory
+- Focus on core provider abstraction and message models
 
 ### Protocol-Based Design
 
 - Use `typing.Protocol` for interfaces
 - Don't require inheritance from base classes
 - Make it easy to create custom providers
+- Support any provider that implements the protocol
+
+### Tool Calling
+
+- Tool names are flexible strings (not restricted to Python identifiers)
+- Support various naming conventions (snake_case, kebab-case, dotted)
+- Always return AssistantMessage from `chat()`, never just a string
+- Generate unique tool call IDs if provider doesn't provide them
 
 ---
 
@@ -522,6 +674,7 @@ uv run mypy src/casual_llm
 ### Run Example
 ```bash
 uv run python examples/message_formatting.py
+uv run python examples/tool_calling.py
 ```
 
 ### Build Package
