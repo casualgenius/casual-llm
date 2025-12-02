@@ -305,7 +305,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Links
 
-- **GitHub**: https://github.com/AlexStansfield/casual-llm
+- **GitHub**: https://github.com/casualgenius/casual-llm
 - **PyPI**: https://pypi.org/project/casual-llm/
-- **Issues**: https://github.com/AlexStansfield/casual-llm/issues
+- **Issues**: https://github.com/casualgenius/casual-llm/issues
 - **casual-mcp**: https://github.com/AlexStansfield/casual-mcp

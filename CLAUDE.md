@@ -24,14 +24,14 @@ casual-llm/
 │   ├── messages.py              # OpenAI-compatible message models
 │   ├── tools.py                 # Tool and ToolParameter models
 │   ├── config.py                # ModelConfig and Provider enum
-│   ├── message_converters.py    # Message format converters
-│   ├── tool_converters.py       # Tool format converters
-│   ├── utils.py                 # JSON extraction utilities
+│   ├── usage.py                 # Usage statistics model
+│   ├── message_converters/      # Message format converters
+│   ├── tool_converters/         # Tool format converters
 │   ├── py.typed                 # PEP 561 type marker
 │   └── providers/               # Provider implementations
 │       ├── __init__.py          # Provider exports + create_provider() factory
 │       ├── base.py              # LLMProvider protocol
-│       ├── ollama.py            # OllamaProvider (with retry logic)
+│       ├── ollama.py            # OllamaProvider
 │       └── openai.py            # OpenAIProvider (optional dependency)
 ├── tests/                       # Test suite
 │   ├── test_messages.py         # Message model tests
@@ -41,7 +41,6 @@ casual-llm/
 │   ├── basic_ollama.py          # Ollama usage
 │   ├── basic_openai.py          # OpenAI usage
 │   ├── message_formatting.py    # All message types demo
-│   ├── tool_definitions.py      # Tool definition examples
 │   └── tool_calling.py          # Complete tool calling workflow
 └── docs/                        # Documentation (future)
 ```
@@ -87,9 +86,6 @@ uv run pytest tests/test_messages.py::test_user_message -v
 ```bash
 # Message formatting example (no external dependencies)
 uv run python examples/message_formatting.py
-
-# Tool definitions example
-uv run python examples/tool_definitions.py
 
 # Ollama example (requires Ollama running locally)
 uv run python examples/basic_ollama.py
@@ -163,8 +159,6 @@ Models for defining LLM function calling tools:
 
 **OllamaProvider** (`src/casual_llm/providers/ollama.py`):
 - Uses the official `ollama` Python library with `AsyncClient`
-- Built-in retry logic with exponential backoff
-- Optional metrics tracking (success/failure counts)
 - Supports both JSON and text response formats
 - Supports tool calling
 - Generates unique tool call IDs if Ollama doesn't provide them
@@ -365,7 +359,6 @@ Then run `uv sync` to update lock file.
 - Test both JSON and text response formats
 - Test tool calling (with and without tools)
 - Test error handling
-- Test retry logic (OllamaProvider)
 - Always verify returned type is AssistantMessage
 
 **Converters**:
@@ -584,8 +577,6 @@ Use Google-style docstrings:
 def create_provider(
     model_config: ModelConfig,
     timeout: float = 60.0,
-    max_retries: int = 0,
-    enable_metrics: bool = False,
 ) -> LLMProvider:
     """
     Factory function to create an LLM provider.
@@ -593,8 +584,6 @@ def create_provider(
     Args:
         model_config: Model configuration with provider details
         timeout: HTTP timeout in seconds (default: 60.0)
-        max_retries: Number of retry attempts for transient failures
-        enable_metrics: Enable metrics tracking (Ollama only)
 
     Returns:
         Configured LLM provider instance
@@ -647,8 +636,8 @@ Once published to PyPI:
 
 ## Getting Help
 
-- **Issues**: https://github.com/AlexStansfield/casual-llm/issues
-- **Discussions**: https://github.com/AlexStansfield/casual-llm/discussions
+- **Issues**: https://github.com/casualgenius/casual-llm/issues
+- **Discussions**: https://github.com/casualgenius/casual-llm/discussions
 - **casual-mcp**: https://github.com/AlexStansfield/casual-mcp
 
 ---
