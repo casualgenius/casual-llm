@@ -12,13 +12,18 @@ import os
 from casual_llm import create_provider, ModelConfig, Provider, UserMessage, SystemMessage
 
 
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
+OPENAI_ENDPOINT = os.getenv("OPENAI_ENDPOINT", None)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
+
 async def main():
     # Create OpenAI provider configuration
     config = ModelConfig(
-        name="gpt-4o-mini",
+        name=OPENAI_MODEL,
         provider=Provider.OPENAI,
-        api_key=os.getenv("OPENAI_API_KEY"),  # Or hardcode (not recommended)
+        api_key=OPENAI_API_KEY,
         temperature=0.7,
+        base_url=OPENAI_ENDPOINT,
     )
 
     # Create provider
@@ -33,7 +38,15 @@ async def main():
     # Generate response
     print("Generating response...")
     response = await provider.chat(messages, response_format="text")
-    print(f"Response:\n{response}")
+    print(f"Response:\n{response.content}")
+
+    # Check usage statistics
+    usage = provider.get_usage()
+    if usage:
+        print(f"\nUsage:")
+        print(f"  Prompt tokens: {usage.prompt_tokens}")
+        print(f"  Completion tokens: {usage.completion_tokens}")
+        print(f"  Total tokens: {usage.total_tokens}")
 
     # Example: JSON response
     print("\n--- JSON Example ---")
@@ -42,7 +55,15 @@ async def main():
     ]
 
     json_response = await provider.chat(json_messages, response_format="json")
-    print(f"JSON Response: {json_response}")
+    print(f"JSON Response: {json_response.content}")
+
+    # Check usage statistics for JSON response
+    usage = provider.get_usage()
+    if usage:
+        print(f"\nUsage:")
+        print(f"  Prompt tokens: {usage.prompt_tokens}")
+        print(f"  Completion tokens: {usage.completion_tokens}")
+        print(f"  Total tokens: {usage.total_tokens}")
 
 
 if __name__ == "__main__":

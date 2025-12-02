@@ -34,6 +34,9 @@ from casual_llm.messages import (
 # Tool models
 from casual_llm.tools import Tool, ToolParameter
 
+# Usage tracking
+from casual_llm.usage import Usage
+
 # Tool converters
 from casual_llm.tool_converters import (
     tool_to_ollama,
@@ -71,6 +74,8 @@ __all__ = [
     # Tools
     "Tool",
     "ToolParameter",
+    # Usage
+    "Usage",
     "tool_to_ollama",
     "tools_to_ollama",
     "tool_to_openai",

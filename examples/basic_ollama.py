@@ -7,15 +7,18 @@ Requirements:
 """
 
 import asyncio
+import os
 from casual_llm import create_provider, ModelConfig, Provider, UserMessage
 
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
 async def main():
     # Create Ollama provider configuration
     config = ModelConfig(
-        name="qwen2.5:7b-instruct",  # Change to your preferred model
+        name=OLLAMA_MODEL,
         provider=Provider.OLLAMA,
-        base_url="http://localhost:11434",
+        base_url=OLLAMA_ENDPOINT,
         temperature=0.7,
     )
 
@@ -30,10 +33,35 @@ async def main():
     response = await provider.chat(messages, response_format="text")
     print(f"Response: {response.content}")
 
+    # Check usage statistics
+    usage = provider.get_usage()
+    if usage:
+        print(f"\nUsage:")
+        print(f"  Prompt tokens: {usage.prompt_tokens}")
+        print(f"  Completion tokens: {usage.completion_tokens}")
+        print(f"  Total tokens: {usage.total_tokens}")
+
     # Check metrics (if enabled)
     if hasattr(provider, "get_metrics"):
         metrics = provider.get_metrics()
         print(f"\nMetrics: {metrics}")
+
+    # Example: JSON response
+    print("\n--- JSON Example ---")
+    json_messages = [
+        UserMessage(content="List the 3 largest capital cities as JSON with their population.")
+    ]
+
+    json_response = await provider.chat(json_messages, response_format="json")
+    print(f"JSON Response: {json_response.content}")
+
+    # Check usage statistics for JSON response
+    usage = provider.get_usage()
+    if usage:
+        print(f"\nUsage:")
+        print(f"  Prompt tokens: {usage.prompt_tokens}")
+        print(f"  Completion tokens: {usage.completion_tokens}")
+        print(f"  Total tokens: {usage.total_tokens}")
 
 
 if __name__ == "__main__":

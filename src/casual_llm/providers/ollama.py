@@ -12,6 +12,7 @@ from ollama import ResponseError, RequestError
 
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
+from casual_llm.usage import Usage
 from casual_llm.tool_converters import tools_to_ollama
 from casual_llm.message_converters import (
     convert_messages_to_ollama,
@@ -63,6 +64,9 @@ class OllamaProvider:
         self.success_count = 0
         self.failure_count = 0
 
+        # Usage tracking
+        self._last_usage: Usage | None = None
+
         logger.info(
             f"OllamaProvider initialized: model={model}, " f"host={host}, max_retries={max_retries}"
         )
@@ -86,6 +90,15 @@ class OllamaProvider:
             "total_calls": total,
             "success_rate_percent": round(success_rate, 2),
         }
+
+    def get_usage(self) -> Usage | None:
+        """
+        Get token usage statistics from the last chat() call.
+
+        Returns:
+            Usage object with token counts, or None if no calls have been made
+        """
+        return self._last_usage
 
     async def chat(
         self,
@@ -162,6 +175,17 @@ class OllamaProvider:
 
                 # Extract message from response
                 response_message = response.message
+
+                # Extract usage statistics
+                prompt_tokens = getattr(response, "prompt_eval_count", 0)
+                completion_tokens = getattr(response, "eval_count", 0)
+                self._last_usage = Usage(
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+                logger.debug(
+                    f"Usage: {prompt_tokens} prompt tokens, {completion_tokens} completion tokens"
+                )
 
                 # Parse tool calls if present
                 tool_calls = None

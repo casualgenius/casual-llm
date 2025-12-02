@@ -11,6 +11,7 @@ from typing import Protocol, Literal
 
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
+from casual_llm.usage import Usage
 
 
 class LLMProvider(Protocol):
@@ -56,5 +57,22 @@ class LLMProvider(Protocol):
 
         Raises:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
+        """
+        ...
+
+    def get_usage(self) -> Usage | None:
+        """
+        Get token usage statistics from the last chat() call.
+
+        Returns:
+            Usage object with prompt_tokens, completion_tokens, and total_tokens,
+            or None if no calls have been made yet.
+
+        Examples:
+            >>> provider = OllamaProvider(model="llama3.1")
+            >>> await provider.chat([UserMessage(content="Hello")])
+            >>> usage = provider.get_usage()
+            >>> if usage:
+            ...     print(f"Used {usage.total_tokens} tokens")
         """
         ...

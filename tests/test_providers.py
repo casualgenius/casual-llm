@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from casual_llm.config import ModelConfig, Provider
 from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
+from casual_llm.usage import Usage
 
 # Try to import OpenAI provider - may not be available
 try:
@@ -231,6 +232,31 @@ class TestOllamaProvider:
             call_kwargs = mock_chat.call_args.kwargs
             assert "temperature" not in call_kwargs["options"]
 
+    @pytest.mark.asyncio
+    async def test_usage_tracking(self, provider):
+        """Test that usage statistics are tracked"""
+        # Check initial state
+        assert provider.get_usage() is None
+
+        mock_response = MagicMock()
+        mock_response.message.content = "Response"
+        mock_response.message.tool_calls = None
+        # Ollama uses prompt_eval_count and eval_count
+        mock_response.prompt_eval_count = 10
+        mock_response.eval_count = 20
+
+        with patch("ollama.AsyncClient.chat", new=AsyncMock(return_value=mock_response)):
+            messages = [UserMessage(content="Test")]
+            await provider.chat(messages)
+
+            # Verify usage was tracked
+            usage = provider.get_usage()
+            assert usage is not None
+            assert isinstance(usage, Usage)
+            assert usage.prompt_tokens == 10
+            assert usage.completion_tokens == 20
+            assert usage.total_tokens == 30
+
 
 @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
 class TestOpenAIProvider:
@@ -374,6 +400,37 @@ class TestOpenAIProvider:
             # Verify temperature was NOT included in request
             call_kwargs = mock_create.call_args.kwargs
             assert "temperature" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_usage_tracking(self, provider):
+        """Test that usage statistics are tracked"""
+        # Check initial state
+        assert provider.get_usage() is None
+
+        mock_completion = MagicMock()
+        mock_message = MagicMock(content="Response")
+        del mock_message.tool_calls
+        mock_completion.choices = [MagicMock(message=mock_message)]
+        # OpenAI uses usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 15
+        mock_usage.completion_tokens = 25
+        mock_usage.total_tokens = 40
+        mock_completion.usage = mock_usage
+
+        with patch.object(
+            provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
+        ):
+            messages = [UserMessage(content="Test")]
+            await provider.chat(messages)
+
+            # Verify usage was tracked
+            usage = provider.get_usage()
+            assert usage is not None
+            assert isinstance(usage, Usage)
+            assert usage.prompt_tokens == 15
+            assert usage.completion_tokens == 25
+            assert usage.total_tokens == 40
 
 
 class TestCreateProviderFactory:

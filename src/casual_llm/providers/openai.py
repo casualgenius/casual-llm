@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
+from casual_llm.usage import Usage
 from casual_llm.tool_converters import tools_to_openai
 from casual_llm.message_converters import (
     convert_messages_to_openai,
@@ -62,9 +63,21 @@ class OpenAIProvider:
         self.temperature = temperature
         self.extra_kwargs = extra_kwargs or {}
 
+        # Usage tracking
+        self._last_usage: Usage | None = None
+
         logger.info(
             f"OpenAIProvider initialized: model={model}, " f"base_url={base_url or 'default'}"
         )
+
+    def get_usage(self) -> Usage | None:
+        """
+        Get token usage statistics from the last chat() call.
+
+        Returns:
+            Usage object with token counts, or None if no calls have been made
+        """
+        return self._last_usage
 
     async def chat(
         self,
@@ -126,6 +139,17 @@ class OpenAIProvider:
         response = await self.client.chat.completions.create(**request_kwargs)
 
         response_message = response.choices[0].message
+
+        # Extract usage statistics
+        if response.usage:
+            self._last_usage = Usage(
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+            )
+            logger.debug(
+                f"Usage: {response.usage.prompt_tokens} prompt tokens, "
+                f"{response.usage.completion_tokens} completion tokens"
+            )
 
         # Parse tool calls if present
         tool_calls = None
