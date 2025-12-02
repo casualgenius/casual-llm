@@ -1,17 +1,20 @@
 """
-Message converters for different LLM provider formats.
+OpenAI message converters.
 
-Converts casual-llm ChatMessage format to provider-specific formats (OpenAI, Ollama).
+Converts casual-llm ChatMessage format to OpenAI API format and vice versa.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from casual_llm.messages import (
     ChatMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
 )
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -91,45 +94,21 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
     return openai_messages
 
 
-def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, Any]]:
-    """
-    Convert casual-llm ChatMessage list to Ollama format.
-
-    Ollama uses the same format as OpenAI, so this is currently an alias.
-
-    Args:
-        messages: List of ChatMessage objects
-
-    Returns:
-        List of dictionaries in Ollama message format
-
-    Examples:
-        >>> from casual_llm import UserMessage
-        >>> messages = [UserMessage(content="Hello")]
-        >>> ollama_msgs = convert_messages_to_ollama(messages)
-        >>> ollama_msgs[0]["role"]
-        'user'
-    """
-    logger.debug(f"Converting {len(messages)} messages to Ollama format")
-    # Ollama uses the same message format as OpenAI
-    return convert_messages_to_openai(messages)
-
-
 def convert_tool_calls_from_openai(
-    response_tool_calls: list[Any],
+    response_tool_calls: list["ChatCompletionMessageToolCall"],
 ) -> list[AssistantToolCall]:
     """
     Convert OpenAI ChatCompletionMessageToolCall to casual-llm format.
 
     Args:
-        response_tool_calls: List of tool calls from OpenAI response
+        response_tool_calls: List of ChatCompletionMessageToolCall from OpenAI response
 
     Returns:
         List of AssistantToolCall objects
 
     Examples:
         >>> # Assuming response has tool_calls
-        >>> # tool_calls = convert_tool_calls_from_openai(response.message.tool_calls)
+        >>> # tool_calls = convert_tool_calls_from_openai(response.choices[0].message.tool_calls)
         >>> # assert len(tool_calls) > 0
         pass
     """
@@ -151,46 +130,7 @@ def convert_tool_calls_from_openai(
     return tool_calls
 
 
-def convert_tool_calls_from_ollama(
-    response_tool_calls: list[dict[str, Any]],
-) -> list[AssistantToolCall]:
-    """
-    Convert Ollama tool calls to casual-llm format.
-
-    Ollama returns tool calls in the same format as OpenAI.
-
-    Args:
-        response_tool_calls: List of tool call dictionaries from Ollama response
-
-    Returns:
-        List of AssistantToolCall objects
-
-    Examples:
-        >>> # tool_calls = convert_tool_calls_from_ollama(response["message"]["tool_calls"])
-        >>> # assert len(tool_calls) > 0
-        pass
-    """
-    tool_calls = []
-
-    for tool in response_tool_calls:
-        logger.debug(f"Converting tool call: {tool['function']['name']}")
-
-        tool_call = AssistantToolCall(
-            id=tool["id"],
-            type=tool.get("type", "function"),
-            function=AssistantToolCallFunction(
-                name=tool["function"]["name"], arguments=tool["function"]["arguments"]
-            ),
-        )
-        tool_calls.append(tool_call)
-
-    logger.debug(f"Converted {len(tool_calls)} tool calls")
-    return tool_calls
-
-
 __all__ = [
     "convert_messages_to_openai",
-    "convert_messages_to_ollama",
     "convert_tool_calls_from_openai",
-    "convert_tool_calls_from_ollama",
 ]

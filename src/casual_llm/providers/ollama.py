@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 import asyncio
-import uuid
 from typing import Any, Literal
 from ollama import AsyncClient
 from ollama import ResponseError, RequestError
@@ -171,25 +170,8 @@ class OllamaProvider:
                         f"Assistant requested {len(response_message.tool_calls)} tool calls"
                     )
                     # Convert ollama tool calls to our format
-                    tool_calls_dicts = []
-                    for tc in response_message.tool_calls:
-                        # Generate a unique ID if Ollama doesn't provide one
-                        tool_call_id = getattr(tc, "id", None)
-                        if not tool_call_id:
-                            tool_call_id = f"call_{uuid.uuid4().hex[:8]}"
-                            logger.debug(f"Generated tool call ID: {tool_call_id}")
-
-                        tool_calls_dicts.append(
-                            {
-                                "id": tool_call_id,
-                                "type": getattr(tc, "type", "function"),
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                        )
-                    tool_calls = convert_tool_calls_from_ollama(tool_calls_dicts)
+                    # The converter handles ID generation and argument conversion
+                    tool_calls = convert_tool_calls_from_ollama(response_message.tool_calls)
 
                 # Always return AssistantMessage
                 content = response_message.content.strip() if response_message.content else ""
