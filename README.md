@@ -15,8 +15,9 @@ Part of the [casual-*](https://github.com/AlexStansfield/casual-mcp) ecosystem o
 - 📦 **Lightweight** - Minimal dependencies (pydantic, ollama)
 - 🔄 **Async-first** - Built for modern async Python
 - 🛡️ **Type-safe** - Full type hints with py.typed marker
-- 🔁 **Retry logic** - Built-in exponential backoff for transient failures
 - 📊 **OpenAI-compatible** - Standard message format used across the industry
+- 🔧 **Tool calling** - First-class support for function/tool calling
+- 📈 **Usage tracking** - Track token usage for cost monitoring
 
 ## Installation
 
@@ -49,12 +50,16 @@ config = ModelConfig(
     temperature=0.7
 )
 
-provider = create_provider(config, max_retries=2)
+provider = create_provider(config)
 
 # Generate response
 messages = [UserMessage(content="What is the capital of France?")]
 response = await provider.chat(messages, response_format="text")
 print(response.content)  # "The capital of France is Paris."
+
+# Check token usage
+usage = provider.get_usage()
+print(f"Tokens used: {usage.total_tokens}")
 ```
 
 ### Using OpenAI
@@ -76,6 +81,13 @@ provider = create_provider(config)
 messages = [UserMessage(content="List 3 colors as JSON")]
 response = await provider.chat(messages, response_format="json")
 print(response.content)  # '{"colors": ["red", "blue", "green"]}'
+
+# Check token usage
+usage = provider.get_usage()
+if usage:
+    print(f"Prompt tokens: {usage.prompt_tokens}")
+    print(f"Completion tokens: {usage.completion_tokens}")
+    print(f"Total tokens: {usage.total_tokens}")
 ```
 
 ### Using OpenAI-Compatible APIs (OpenRouter, LM Studio, etc.)
@@ -142,7 +154,7 @@ messages: list[ChatMessage] = [system_msg, user_msg, assistant_msg, tool_msg]
 Implement the `LLMProvider` protocol to add your own provider:
 
 ```python
-from casual_llm import LLMProvider, ChatMessage, AssistantMessage, Tool
+from casual_llm import LLMProvider, ChatMessage, AssistantMessage, Tool, Usage
 
 class MyCustomProvider:
     """Custom LLM provider implementation."""
@@ -157,6 +169,10 @@ class MyCustomProvider:
         # Your implementation here
         ...
 
+    def get_usage(self) -> Usage | None:
+        """Return token usage from last call."""
+        return self._last_usage
+
 # Use it like any other provider
 provider = MyCustomProvider(...)
 response = await provider.chat(messages)
@@ -165,28 +181,34 @@ print(response.content)
 
 ## Advanced Usage
 
-### Retry Logic and Metrics
+### Usage Tracking
+
+Track token usage from API calls for cost monitoring:
 
 ```python
-from casual_llm import create_provider, ModelConfig, Provider
+from casual_llm import create_provider, ModelConfig, Provider, UserMessage
 
 config = ModelConfig(
-    name="qwen2.5:7b-instruct",
-    provider=Provider.OLLAMA,
+    name="gpt-4o-mini",
+    provider=Provider.OPENAI,
+    api_key="sk-...",
 )
 
-# Enable retries and metrics
-provider = create_provider(
-    config,
-    max_retries=3,  # Retry up to 3 times on transient failures
-    enable_metrics=True  # Track success/failure counts
-)
+provider = create_provider(config)
 
-# After some calls, check metrics (Ollama only)
-metrics = provider.get_metrics()
-print(metrics)
-# {'success_count': 42, 'failure_count': 3, 'success_rate_percent': 93.33}
+# Make a chat call
+messages = [UserMessage(content="Hello!")]
+response = await provider.chat(messages)
+
+# Get usage statistics from the last call
+usage = provider.get_usage()
+if usage:
+    print(f"Prompt tokens: {usage.prompt_tokens}")
+    print(f"Completion tokens: {usage.completion_tokens}")
+    print(f"Total tokens: {usage.total_tokens}")
 ```
+
+Both OpenAI and Ollama providers support usage tracking.
 
 ## Why casual-llm?
 
@@ -232,6 +254,8 @@ class LLMProvider(Protocol):
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
     ) -> AssistantMessage: ...
+
+    def get_usage(self) -> Usage | None: ...
 ```
 
 #### `ModelConfig`
@@ -242,7 +266,7 @@ class ModelConfig:
     provider: Provider  # Provider.OPENAI or Provider.OLLAMA
     base_url: str | None = None  # Optional API base URL
     api_key: str | None = None  # Optional API key
-    temperature: float = 0.1  # Temperature for generation
+    temperature: float | None = None  # Temperature for generation (uses provider default if None)
 ```
 
 #### `create_provider()`
@@ -250,9 +274,15 @@ class ModelConfig:
 def create_provider(
     model_config: ModelConfig,
     timeout: float = 60.0,
-    max_retries: int = 0,
-    enable_metrics: bool = False,
 ) -> LLMProvider: ...
+```
+
+#### `Usage`
+```python
+class Usage(BaseModel):
+    prompt_tokens: int  # Tokens in the prompt
+    completion_tokens: int  # Tokens in the completion
+    total_tokens: int  # Total tokens (computed automatically)
 ```
 
 ### Message Models
