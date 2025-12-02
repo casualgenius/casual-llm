@@ -17,8 +17,6 @@ except ImportError:
 def create_provider(
     model_config: ModelConfig,
     timeout: float = 60.0,
-    max_retries: int = 0,
-    enable_metrics: bool = False,
 ) -> LLMProvider:
     """
     Factory function to create an LLM provider from a ModelConfig.
@@ -26,8 +24,6 @@ def create_provider(
     Args:
         model_config: Model configuration (name, provider, base_url, api_key, temperature)
         timeout: HTTP timeout in seconds (default: 60.0)
-        max_retries: Number of retry attempts for transient failures (default: 0)
-        enable_metrics: Enable metrics tracking (default: False)
 
     Returns:
         Configured LLM provider (OllamaProvider or OpenAIProvider)
@@ -50,7 +46,7 @@ def create_provider(
         ...     provider=Provider.OLLAMA,
         ...     base_url="http://localhost:11434"
         ... )
-        >>> provider = create_provider(config, max_retries=2, enable_metrics=True)
+        >>> provider = create_provider(config)
     """
     if model_config.provider == Provider.OLLAMA:
         host = model_config.base_url or "http://localhost:11434"
@@ -59,8 +55,6 @@ def create_provider(
             host=host,
             temperature=model_config.temperature,
             timeout=timeout,
-            max_retries=max_retries,
-            enable_metrics=enable_metrics,
         )
 
     elif model_config.provider == Provider.OPENAI:

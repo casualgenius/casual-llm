@@ -5,10 +5,8 @@ Ollama LLM provider using the official ollama library.
 from __future__ import annotations
 
 import logging
-import asyncio
 from typing import Any, Literal
 from ollama import AsyncClient
-from ollama import ResponseError, RequestError
 
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
@@ -24,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class OllamaProvider:
     """
-    Ollama LLM provider with configurable retry logic and metrics.
+    Ollama LLM provider.
 
     Uses the official ollama Python library for communication.
     Supports both JSON and text response formats.
@@ -36,8 +34,6 @@ class OllamaProvider:
         host: str = "http://localhost:11434",
         temperature: float | None = None,
         timeout: float = 60.0,
-        max_retries: int = 0,
-        enable_metrics: bool = False,
     ):
         """
         Initialize Ollama provider.
@@ -47,49 +43,19 @@ class OllamaProvider:
             host: Ollama server URL (e.g., "http://localhost:11434")
             temperature: Temperature for generation (0.0-1.0, optional - uses Ollama default if not set)
             timeout: HTTP request timeout in seconds
-            max_retries: Number of retries for transient failures (default: 0)
-            enable_metrics: Track success/failure metrics (default: False)
         """
         self.model = model
         self.host = host.rstrip("/")  # Remove trailing slashes
         self.temperature = temperature
         self.timeout = timeout
-        self.max_retries = max_retries
-        self.enable_metrics = enable_metrics
 
         # Create async client
         self.client = AsyncClient(host=self.host, timeout=timeout)
 
-        # Metrics tracking
-        self.success_count = 0
-        self.failure_count = 0
-
         # Usage tracking
         self._last_usage: Usage | None = None
 
-        logger.info(
-            f"OllamaProvider initialized: model={model}, " f"host={host}, max_retries={max_retries}"
-        )
-
-    def get_metrics(self) -> dict[str, int | float]:
-        """
-        Get performance metrics.
-
-        Returns:
-            Dictionary with success/failure counts and success rate
-        """
-        if not self.enable_metrics:
-            return {}
-
-        total = self.success_count + self.failure_count
-        success_rate = (self.success_count / total * 100) if total > 0 else 0.0
-
-        return {
-            "success_count": self.success_count,
-            "failure_count": self.failure_count,
-            "total_calls": total,
-            "success_rate_percent": round(success_rate, 2),
-        }
+        logger.info(f"OllamaProvider initialized: model={model}, host={host}")
 
     def get_usage(self) -> Usage | None:
         """
@@ -152,79 +118,35 @@ class OllamaProvider:
             request_kwargs["format"] = "json"
 
         # Add tools if provided
-        converted_tools = None
         if tools:
             converted_tools = tools_to_ollama(tools)
             request_kwargs["tools"] = converted_tools
             logger.debug(f"Added {len(converted_tools)} tools to request")
 
-        # Execute with retry logic
-        last_exception: Exception | None = None
+        logger.debug(f"Generating with model {self.model}")
+        response = await self.client.chat(**request_kwargs)
 
-        for attempt in range(self.max_retries + 1):
-            try:
-                logger.debug(f"Calling Ollama (attempt {attempt + 1}/{self.max_retries + 1})")
-                response = await self.client.chat(**request_kwargs)
+        # Extract message from response
+        response_message = response.message
 
-                # Success - update metrics
-                if self.enable_metrics:
-                    self.success_count += 1
+        # Extract usage statistics
+        prompt_tokens = getattr(response, "prompt_eval_count", 0)
+        completion_tokens = getattr(response, "eval_count", 0)
+        self._last_usage = Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+        logger.debug(f"Usage: {prompt_tokens} prompt tokens, {completion_tokens} completion tokens")
 
-                if attempt > 0:
-                    logger.info(f"Request succeeded on attempt {attempt + 1}")
+        # Parse tool calls if present
+        tool_calls = None
+        if response_message.tool_calls:
+            logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+            # Convert ollama tool calls to our format
+            # The converter handles ID generation and argument conversion
+            tool_calls = convert_tool_calls_from_ollama(response_message.tool_calls)
 
-                # Extract message from response
-                response_message = response.message
-
-                # Extract usage statistics
-                prompt_tokens = getattr(response, "prompt_eval_count", 0)
-                completion_tokens = getattr(response, "eval_count", 0)
-                self._last_usage = Usage(
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                )
-                logger.debug(
-                    f"Usage: {prompt_tokens} prompt tokens, {completion_tokens} completion tokens"
-                )
-
-                # Parse tool calls if present
-                tool_calls = None
-                if response_message.tool_calls:
-                    logger.debug(
-                        f"Assistant requested {len(response_message.tool_calls)} tool calls"
-                    )
-                    # Convert ollama tool calls to our format
-                    # The converter handles ID generation and argument conversion
-                    tool_calls = convert_tool_calls_from_ollama(response_message.tool_calls)
-
-                # Always return AssistantMessage
-                content = response_message.content.strip() if response_message.content else ""
-                logger.debug(f"Generated {len(content)} characters")
-                return AssistantMessage(content=content, tool_calls=tool_calls)
-
-            except (ConnectionError, TimeoutError) as e:
-                # Transient errors - retry
-                last_exception = e
-                if attempt < self.max_retries:
-                    wait_time = 2**attempt  # Exponential backoff
-                    logger.warning(
-                        f"Request failed (attempt {attempt + 1}/{self.max_retries + 1}): {e}. "
-                        f"Retrying in {wait_time}s..."
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    logger.error(f"Request failed after {self.max_retries + 1} attempts: {e}")
-
-            except (ResponseError, RequestError) as e:
-                # Non-retriable errors from ollama library
-                last_exception = e
-                logger.error(f"Ollama error: {e}")
-                break  # Don't retry
-
-        # All attempts failed
-        if self.enable_metrics:
-            self.failure_count += 1
-
-        if last_exception:
-            raise last_exception
-        raise RuntimeError("Unknown error occurred")
+        # Always return AssistantMessage
+        content = response_message.content.strip() if response_message.content else ""
+        logger.debug(f"Generated {len(content)} characters")
+        return AssistantMessage(content=content, tool_calls=tool_calls)

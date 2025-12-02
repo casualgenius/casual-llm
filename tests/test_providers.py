@@ -29,7 +29,6 @@ class TestOllamaProvider:
             host="http://localhost:11434",
             temperature=0.7,
             timeout=30.0,
-            max_retries=2,
         )
 
     @pytest.mark.asyncio
@@ -109,75 +108,6 @@ class TestOllamaProvider:
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Handled!"
-
-    @pytest.mark.asyncio
-    async def test_retry_on_transient_failure(self, provider):
-        """Test retry logic on transient errors (ConnectionError/TimeoutError)"""
-        mock_response_success = MagicMock()
-        mock_response_success.message.content = "Success after retry"
-        mock_response_success.message.tool_calls = None
-
-        mock_chat = AsyncMock()
-        # First call raises ConnectionError, second succeeds
-        mock_chat.side_effect = [
-            ConnectionError("Connection failed"),
-            mock_response_success,
-        ]
-
-        # Mock asyncio.sleep to avoid delays in tests
-        with patch("ollama.AsyncClient.chat", new=mock_chat):
-            with patch("asyncio.sleep", new=AsyncMock()):
-                messages = [UserMessage(content="Test")]
-                result = await provider.chat(messages, response_format="text")
-
-                assert isinstance(result, AssistantMessage)
-                assert result.content == "Success after retry"
-                assert mock_chat.call_count == 2  # Retried once
-
-    @pytest.mark.asyncio
-    async def test_max_retries_exceeded(self, provider):
-        """Test that errors are raised after max retries"""
-        mock_chat = AsyncMock()
-        # All calls fail with ConnectionError
-        mock_chat.side_effect = ConnectionError("Connection failed")
-
-        # Mock asyncio.sleep to avoid delays in tests
-        with patch("ollama.AsyncClient.chat", new=mock_chat):
-            with patch("asyncio.sleep", new=AsyncMock()):
-                messages = [UserMessage(content="Test")]
-
-                with pytest.raises(ConnectionError):
-                    await provider.chat(messages, response_format="text")
-
-                # Should have tried: initial + 2 retries = 3 times
-                assert mock_chat.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_metrics_tracking(self):
-        """Test that metrics are tracked when enabled"""
-        provider = OllamaProvider(
-            model="test-model",
-            host="http://localhost:11434",
-            enable_metrics=True,
-        )
-
-        mock_response = MagicMock()
-        mock_response.message.content = "Success"
-        mock_response.message.tool_calls = None
-
-        with patch("ollama.AsyncClient.chat", new=AsyncMock(return_value=mock_response)):
-            messages = [UserMessage(content="Test")]
-
-            await provider.chat(messages, response_format="text")
-
-            # Check metrics directly
-            assert provider.success_count == 1
-            assert provider.failure_count == 0
-
-            # Check get_metrics() method
-            metrics = provider.get_metrics()
-            assert metrics["success_count"] == 1
-            assert metrics["failure_count"] == 0
 
     @pytest.mark.asyncio
     async def test_temperature_override(self, provider):
@@ -444,12 +374,11 @@ class TestCreateProviderFactory:
             base_url="http://localhost:11434/api/chat",
         )
 
-        provider = create_provider(config, timeout=60.0, max_retries=2)
+        provider = create_provider(config, timeout=60.0)
 
         assert isinstance(provider, OllamaProvider)
         assert provider.model == "qwen2.5:7b-instruct"
         assert provider.timeout == 60.0
-        assert provider.max_retries == 2
 
     def test_create_ollama_provider_with_default_url(self):
         """Test creating Ollama provider with default URL"""
@@ -526,18 +455,3 @@ class TestCreateProviderFactory:
 
         with pytest.raises(ValueError, match="Unsupported provider"):
             create_provider(config)
-
-    def test_create_provider_metrics_enabled(self):
-        """Test creating provider with metrics enabled"""
-        config = ModelConfig(
-            name="test-model",
-            provider=Provider.OLLAMA,
-        )
-
-        provider = create_provider(config, enable_metrics=True)
-
-        assert isinstance(provider, OllamaProvider)
-        assert provider.enable_metrics is True
-        # Verify metrics tracking works
-        metrics = provider.get_metrics()
-        assert "success_count" in metrics or metrics == {}  # Empty if no calls yet

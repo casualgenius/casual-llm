@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from casual_llm.tools import Tool
 
 if TYPE_CHECKING:
-    from ollama._types import Tool as OllamaTool
+    pass
 
 logger = logging.getLogger(__name__)
 

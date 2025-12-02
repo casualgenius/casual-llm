@@ -16,6 +16,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
 OPENAI_ENDPOINT = os.getenv("OPENAI_ENDPOINT", None)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
 
+
 async def main():
     # Create OpenAI provider configuration
     config = ModelConfig(
@@ -43,7 +44,7 @@ async def main():
     # Check usage statistics
     usage = provider.get_usage()
     if usage:
-        print(f"\nUsage:")
+        print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")
@@ -60,7 +61,7 @@ async def main():
     # Check usage statistics for JSON response
     usage = provider.get_usage()
     if usage:
-        print(f"\nUsage:")
+        print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")

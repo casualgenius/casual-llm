@@ -5,7 +5,7 @@ Converts casual-llm Tool format to OpenAI ChatCompletionToolParam format.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from casual_llm.tools import Tool
 

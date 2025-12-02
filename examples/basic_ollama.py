@@ -13,6 +13,7 @@ from casual_llm import create_provider, ModelConfig, Provider, UserMessage
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
+
 async def main():
     # Create Ollama provider configuration
     config = ModelConfig(
@@ -22,8 +23,8 @@ async def main():
         temperature=0.7,
     )
 
-    # Create provider with retry logic
-    provider = create_provider(config, max_retries=2, enable_metrics=True)
+    # Create provider
+    provider = create_provider(config)
 
     # Create a simple message
     messages = [UserMessage(content="What is the capital of France?")]
@@ -36,15 +37,10 @@ async def main():
     # Check usage statistics
     usage = provider.get_usage()
     if usage:
-        print(f"\nUsage:")
+        print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")
-
-    # Check metrics (if enabled)
-    if hasattr(provider, "get_metrics"):
-        metrics = provider.get_metrics()
-        print(f"\nMetrics: {metrics}")
 
     # Example: JSON response
     print("\n--- JSON Example ---")
@@ -58,7 +54,7 @@ async def main():
     # Check usage statistics for JSON response
     usage = provider.get_usage()
     if usage:
-        print(f"\nUsage:")
+        print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")
