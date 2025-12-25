@@ -423,9 +423,7 @@ class TestOllamaProvider:
         success_response = self._create_mock_ollama_success_response()
 
         # First two calls fail with ConnectError, third succeeds
-        mock_chat = AsyncMock(
-            side_effect=[connect_error, connect_error, success_response]
-        )
+        mock_chat = AsyncMock(side_effect=[connect_error, connect_error, success_response])
 
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
@@ -569,9 +567,7 @@ class TestOllamaProvider:
         mock_response.prompt_eval_count = 10
         mock_response.eval_count = 20
 
-        mock_chat = AsyncMock(
-            side_effect=[connect_error, connect_error, mock_response]
-        )
+        mock_chat = AsyncMock(side_effect=[connect_error, connect_error, mock_response])
 
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
@@ -952,13 +948,9 @@ class TestOpenAIProvider:
         success_response = self._create_mock_success_response()
 
         # First two calls fail with RateLimitError, third succeeds
-        mock_create = AsyncMock(
-            side_effect=[rate_limit_error, rate_limit_error, success_response]
-        )
+        mock_create = AsyncMock(side_effect=[rate_limit_error, rate_limit_error, success_response])
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
                 result = await provider_with_retry.chat(messages)
@@ -982,9 +974,7 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(side_effect=[server_error, success_response])
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
                 result = await provider_with_retry.chat(messages)
@@ -1001,9 +991,7 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(side_effect=[connection_error, success_response])
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
                 result = await provider_with_retry.chat(messages)
@@ -1019,9 +1007,7 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(side_effect=auth_error)
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
 
@@ -1039,9 +1025,7 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(side_effect=bad_request_error)
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
 
@@ -1061,9 +1045,7 @@ class TestOpenAIProvider:
         # First call fails, second succeeds
         mock_create = AsyncMock(side_effect=[rate_limit_error, success_response])
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()):
                 messages = [UserMessage(content="Hello")]
                 result = await provider_with_retry.chat(messages)
@@ -1080,9 +1062,7 @@ class TestOpenAIProvider:
         # All 3 attempts fail
         mock_create = AsyncMock(side_effect=rate_limit_error)
 
-        with patch.object(
-            provider_with_retry.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider_with_retry.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
 
@@ -1102,9 +1082,7 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(side_effect=rate_limit_error)
 
-        with patch.object(
-            provider.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
 
@@ -1139,13 +1117,9 @@ class TestOpenAIProvider:
         mock_completion.choices = [MagicMock(message=mock_message)]
         mock_completion.usage = None
 
-        mock_create = AsyncMock(
-            side_effect=[rate_limit_error, rate_limit_error, mock_completion]
-        )
+        mock_create = AsyncMock(side_effect=[rate_limit_error, rate_limit_error, mock_completion])
 
-        with patch.object(
-            provider.client.chat.completions, "create", new=mock_create
-        ):
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
             with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
                 messages = [UserMessage(content="Hello")]
                 result = await provider.chat(messages)

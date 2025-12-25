@@ -9,7 +9,7 @@ import logging
 from typing import Any, Literal
 
 import httpx
-from ollama import AsyncClient, RequestError, ResponseError
+from ollama import AsyncClient, ResponseError
 from pydantic import BaseModel
 
 from casual_llm.config import RetryConfig
@@ -183,16 +183,12 @@ class OllamaProvider:
 
                 # If this was the last attempt, raise the exception
                 if attempt >= max_attempts:
-                    logger.warning(
-                        f"All {max_attempts} attempts failed for model {self.model}"
-                    )
+                    logger.warning(f"All {max_attempts} attempts failed for model {self.model}")
                     raise
 
                 # Calculate exponential backoff delay: backoff_factor^(attempt-1)
                 # For attempt 1: delay = 1s, attempt 2: delay = 2s, attempt 3: delay = 4s (with factor=2.0)
-                backoff_factor = (
-                    self.retry_config.backoff_factor if self.retry_config else 2.0
-                )
+                backoff_factor = self.retry_config.backoff_factor if self.retry_config else 2.0
                 delay = backoff_factor ** (attempt - 1)
 
                 logger.warning(
