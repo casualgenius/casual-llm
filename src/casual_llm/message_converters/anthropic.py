@@ -17,7 +17,6 @@ from casual_llm.messages import (
 from casual_llm.utils.image import (
     strip_base64_prefix,
     fetch_image_as_base64,
-    ImageFetchError,
 )
 
 if TYPE_CHECKING:
@@ -195,10 +194,12 @@ async def convert_messages_to_anthropic(
                             }
                         )
 
-                anthropic_messages.append({
-                    "role": "assistant",
-                    "content": content if content else msg.content,
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": content if content else msg.content,
+                    }
+                )
 
             case "system":
                 # Anthropic takes system prompt as separate parameter
@@ -208,22 +209,26 @@ async def convert_messages_to_anthropic(
             case "tool":
                 # Anthropic uses tool_result content blocks within user messages
                 # Tool results should be grouped with their corresponding user turn
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": msg.tool_call_id,
-                            "content": msg.content,
-                        }
-                    ],
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": msg.tool_call_id,
+                                "content": msg.content,
+                            }
+                        ],
+                    }
+                )
 
             case "user":
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": await _convert_user_content_to_anthropic(msg.content),
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "user",
+                        "content": await _convert_user_content_to_anthropic(msg.content),
+                    }
+                )
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")

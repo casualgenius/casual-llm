@@ -53,7 +53,10 @@ class TestImageContentConversion:
         """Test base64 image is converted to inline_data format."""
         image = ImageContent(
             type="image",
-            source={"type": "base64", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="},
+            source={
+                "type": "base64",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
             media_type="image/png",
         )
 
@@ -61,7 +64,10 @@ class TestImageContentConversion:
 
         assert "inline_data" in result
         assert result["inline_data"]["mime_type"] == "image/png"
-        assert result["inline_data"]["data"] == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        assert (
+            result["inline_data"]["data"]
+            == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
 
     @pytest.mark.asyncio
     async def test_base64_image_jpeg_media_type(self):
@@ -561,32 +567,12 @@ class TestGoogleProviderVision:
             """Mock async generator that yields stream chunks."""
             chunks = [
                 MagicMock(
-                    candidates=[
-                        MagicMock(
-                            content=MagicMock(
-                                parts=[MagicMock(text="I see")]
-                            )
-                        )
-                    ]
+                    candidates=[MagicMock(content=MagicMock(parts=[MagicMock(text="I see")]))]
                 ),
                 MagicMock(
-                    candidates=[
-                        MagicMock(
-                            content=MagicMock(
-                                parts=[MagicMock(text=" a cat")]
-                            )
-                        )
-                    ]
+                    candidates=[MagicMock(content=MagicMock(parts=[MagicMock(text=" a cat")]))]
                 ),
-                MagicMock(
-                    candidates=[
-                        MagicMock(
-                            content=MagicMock(
-                                parts=[MagicMock(text=".")]
-                            )
-                        )
-                    ]
-                ),
+                MagicMock(candidates=[MagicMock(content=MagicMock(parts=[MagicMock(text=".")]))]),
             ]
             for chunk in chunks:
                 yield chunk

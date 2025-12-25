@@ -45,7 +45,10 @@ class TestImageContentConversion:
         """Test base64 image is converted to data URI format."""
         image = ImageContent(
             type="image",
-            source={"type": "base64", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="},
+            source={
+                "type": "base64",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
             media_type="image/png",
         )
 
@@ -293,8 +296,7 @@ class TestOpenAIProviderVision:
             assert chat_messages[0]["content"][0]["type"] == "text"
             assert chat_messages[0]["content"][1]["type"] == "image_url"
             assert (
-                chat_messages[0]["content"][1]["image_url"]["url"]
-                == "https://example.com/cat.jpg"
+                chat_messages[0]["content"][1]["image_url"]["url"] == "https://example.com/cat.jpg"
             )
 
     @pytest.mark.asyncio
@@ -430,9 +432,7 @@ class TestOpenAIProviderVision:
                 MagicMock(
                     choices=[MagicMock(delta=MagicMock(content=" a cat"), finish_reason=None)]
                 ),
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="."), finish_reason="stop")]
-                ),
+                MagicMock(choices=[MagicMock(delta=MagicMock(content="."), finish_reason="stop")]),
             ]
             for chunk in chunks:
                 yield chunk

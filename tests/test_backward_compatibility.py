@@ -5,7 +5,6 @@ existing text-only message functionality continues to work correctly
 across all message types and all providers.
 """
 
-import asyncio
 import pytest
 
 from casual_llm import (

@@ -39,8 +39,7 @@ def _tool_to_anthropic(tool: Tool) -> dict[str, Any]:
         "input_schema": {
             "type": "object",
             "properties": {
-                name: param.model_dump(exclude_none=True)
-                for name, param in tool.parameters.items()
+                name: param.model_dump(exclude_none=True) for name, param in tool.parameters.items()
             },
             "required": tool.required,
         },
@@ -116,8 +115,7 @@ class AnthropicProvider:
         self._last_usage: Usage | None = None
 
         logger.info(
-            f"AnthropicProvider initialized: model={model}, "
-            f"base_url={base_url or 'default'}"
+            f"AnthropicProvider initialized: model={model}, " f"base_url={base_url or 'default'}"
         )
 
     def get_usage(self) -> Usage | None:

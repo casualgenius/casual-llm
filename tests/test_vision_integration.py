@@ -398,11 +398,7 @@ class TestDataURIPrefixHandling:
     @pytest.mark.asyncio
     async def test_anthropic_strips_data_uri_prefix(self, data_uri_source):
         """Anthropic should strip data URI prefix from source."""
-        messages = [
-            UserMessage(
-                content=[data_uri_source]
-            )
-        ]
+        messages = [UserMessage(content=[data_uri_source])]
 
         result, _ = await convert_messages_to_anthropic(messages)
 
@@ -414,11 +410,7 @@ class TestDataURIPrefixHandling:
     @pytest.mark.asyncio
     async def test_google_strips_data_uri_prefix(self, data_uri_source):
         """Google should strip data URI prefix from inline_data."""
-        messages = [
-            UserMessage(
-                content=[data_uri_source]
-            )
-        ]
+        messages = [UserMessage(content=[data_uri_source])]
 
         result, _ = await convert_messages_to_google(messages)
 
@@ -430,11 +422,7 @@ class TestDataURIPrefixHandling:
     @pytest.mark.asyncio
     async def test_ollama_strips_data_uri_prefix(self, data_uri_source):
         """Ollama should strip data URI prefix from images array."""
-        messages = [
-            UserMessage(
-                content=[data_uri_source]
-            )
-        ]
+        messages = [UserMessage(content=[data_uri_source])]
 
         result = await convert_messages_to_ollama(messages)
 

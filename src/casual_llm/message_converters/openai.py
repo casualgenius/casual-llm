@@ -137,10 +137,12 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
                 )
 
             case "user":
-                openai_messages.append({
-                    "role": "user",
-                    "content": _convert_user_content_to_openai(msg.content),
-                })
+                openai_messages.append(
+                    {
+                        "role": "user",
+                        "content": _convert_user_content_to_openai(msg.content),
+                    }
+                )
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")

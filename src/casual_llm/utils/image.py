@@ -61,8 +61,7 @@ async def fetch_image_as_base64(
     """
     if not HTTPX_AVAILABLE:
         raise ImageFetchError(
-            "httpx is required for fetching images from URLs. "
-            "Install it with: pip install httpx"
+            "httpx is required for fetching images from URLs. " "Install it with: pip install httpx"
         )
 
     try:

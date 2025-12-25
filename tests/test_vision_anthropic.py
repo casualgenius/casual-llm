@@ -76,7 +76,10 @@ class TestImageContentConversion:
         """Test base64 image is converted to Anthropic format."""
         image = ImageContent(
             type="image",
-            source={"type": "base64", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="},
+            source={
+                "type": "base64",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
             media_type="image/png",
         )
 
@@ -85,7 +88,10 @@ class TestImageContentConversion:
         assert result["type"] == "image"
         assert result["source"]["type"] == "base64"
         assert result["source"]["media_type"] == "image/png"
-        assert result["source"]["data"] == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        assert (
+            result["source"]["data"]
+            == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
 
     @pytest.mark.asyncio
     async def test_base64_image_jpeg_media_type(self):
@@ -131,7 +137,10 @@ class TestImageContentConversion:
         assert result["source"]["type"] == "base64"
         assert result["source"]["media_type"] == "image/png"
         # Data URI prefix should be stripped
-        assert result["source"]["data"] == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        assert (
+            result["source"]["data"]
+            == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
 
     @pytest.mark.asyncio
     async def test_base64_dict_with_data_uri_prefix(self):
@@ -439,7 +448,9 @@ class TestAnthropicProviderVision:
     async def test_chat_with_multiple_images(self, provider):
         """Test chat with multiple images in a single message."""
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(type="text", text="The first image shows a cat, the second shows a dog.")]
+        mock_response.content = [
+            MagicMock(type="text", text="The first image shows a cat, the second shows a dog.")
+        ]
         mock_response.usage = MagicMock(input_tokens=200, output_tokens=30)
 
         mock_create = AsyncMock(return_value=mock_response)

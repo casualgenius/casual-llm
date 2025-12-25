@@ -171,17 +171,21 @@ async def convert_messages_to_google(
                         except json.JSONDecodeError:
                             args = {}
 
-                        parts.append({
-                            "function_call": {
-                                "name": tool_call.function.name,
-                                "args": args,
+                        parts.append(
+                            {
+                                "function_call": {
+                                    "name": tool_call.function.name,
+                                    "args": args,
+                                }
                             }
-                        })
+                        )
 
-                google_messages.append({
-                    "role": "model",
-                    "parts": parts if parts else [{"text": ""}],
-                })
+                google_messages.append(
+                    {
+                        "role": "model",
+                        "parts": parts if parts else [{"text": ""}],
+                    }
+                )
 
             case "system":
                 # Google takes system instruction as separate parameter
@@ -190,23 +194,27 @@ async def convert_messages_to_google(
 
             case "tool":
                 # Google uses function_response in parts for tool results
-                google_messages.append({
-                    "role": "function",
-                    "parts": [
-                        {
-                            "function_response": {
-                                "name": msg.name,
-                                "response": {"content": msg.content},
+                google_messages.append(
+                    {
+                        "role": "function",
+                        "parts": [
+                            {
+                                "function_response": {
+                                    "name": msg.name,
+                                    "response": {"content": msg.content},
+                                }
                             }
-                        }
-                    ],
-                })
+                        ],
+                    }
+                )
 
             case "user":
-                google_messages.append({
-                    "role": "user",
-                    "parts": await _convert_user_content_to_google_parts(msg.content),
-                })
+                google_messages.append(
+                    {
+                        "role": "user",
+                        "parts": await _convert_user_content_to_google_parts(msg.content),
+                    }
+                )
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")

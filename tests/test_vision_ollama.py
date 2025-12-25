@@ -52,14 +52,20 @@ class TestImageContentConversion:
         """Test base64 dict image is converted to raw base64 string."""
         image = ImageContent(
             type="image",
-            source={"type": "base64", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="},
+            source={
+                "type": "base64",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
             media_type="image/png",
         )
 
         result = await _convert_image_to_ollama(image)
 
         # Should return raw base64 without prefix
-        assert result == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        assert (
+            result
+            == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
 
     @pytest.mark.asyncio
     async def test_data_uri_image_conversion(self):
@@ -73,7 +79,10 @@ class TestImageContentConversion:
         result = await _convert_image_to_ollama(image)
 
         # Data URI prefix should be stripped
-        assert result == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        assert (
+            result
+            == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
 
     @pytest.mark.asyncio
     async def test_base64_dict_with_data_uri_prefix(self):

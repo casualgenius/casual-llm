@@ -42,8 +42,7 @@ def _tool_to_google(tool: Tool) -> dict[str, Any]:
         "parameters": {
             "type": "object",
             "properties": {
-                name: param.model_dump(exclude_none=True)
-                for name, param in tool.parameters.items()
+                name: param.model_dump(exclude_none=True) for name, param in tool.parameters.items()
             },
             "required": tool.required,
         },
