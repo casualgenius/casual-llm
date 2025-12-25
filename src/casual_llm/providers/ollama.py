@@ -109,8 +109,8 @@ class OllamaProvider:
             ...     response_format=PersonInfo  # Pass the class, not an instance
             ... )
         """
-        # Convert messages to Ollama format using converter
-        chat_messages = convert_messages_to_ollama(messages)
+        # Convert messages to Ollama format using converter (async for image support)
+        chat_messages = await convert_messages_to_ollama(messages)
         logger.debug(f"Converted {len(messages)} messages to Ollama format")
 
         # Use provided temperature or fall back to instance temperature
@@ -211,8 +211,8 @@ class OllamaProvider:
             >>> async for chunk in provider.stream([UserMessage(content="Hello")]):
             ...     print(chunk.content, end="", flush=True)
         """
-        # Convert messages to Ollama format using converter
-        chat_messages = convert_messages_to_ollama(messages)
+        # Convert messages to Ollama format using converter (async for image support)
+        chat_messages = await convert_messages_to_ollama(messages)
         logger.debug(f"Converted {len(messages)} messages to Ollama format for streaming")
 
         # Use provided temperature or fall back to instance temperature
