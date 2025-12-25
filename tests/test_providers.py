@@ -14,12 +14,14 @@ from casual_llm.usage import Usage
 # Test Pydantic models for JSON Schema tests
 class PersonInfo(BaseModel):
     """Simple Pydantic model for testing"""
+
     name: str
     age: int
 
 
 class Address(BaseModel):
     """Nested model for testing complex schemas"""
+
     street: str
     city: str
     zip_code: str
@@ -27,9 +29,11 @@ class Address(BaseModel):
 
 class PersonWithAddress(BaseModel):
     """Pydantic model with nested structure for testing"""
+
     name: str
     age: int
     address: Address
+
 
 # Try to import OpenAI provider - may not be available
 try:
@@ -492,7 +496,9 @@ class TestOpenAIProvider:
     async def test_json_schema_response_format(self, provider):
         """Test that Pydantic model is correctly converted to JSON Schema for OpenAI"""
         mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(content='{"name": "Alice", "age": 30}'))]
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content='{"name": "Alice", "age": 30}'))
+        ]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
@@ -527,9 +533,13 @@ class TestOpenAIProvider:
     async def test_json_schema_nested_pydantic_model(self, provider):
         """Test that complex nested Pydantic models work correctly"""
         mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(
-            content='{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
-        ))]
+        mock_completion.choices = [
+            MagicMock(
+                message=MagicMock(
+                    content='{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+                )
+            )
+        ]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
