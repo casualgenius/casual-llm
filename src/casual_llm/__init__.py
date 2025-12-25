@@ -10,7 +10,7 @@ Part of the casual-* ecosystem of lightweight AI tools.
 __version__ = "0.2.0"
 
 # Model configuration
-from casual_llm.config import ModelConfig, Provider
+from casual_llm.config import ModelConfig, Provider, RetryConfig
 
 # Provider protocol and implementations
 from casual_llm.providers import (
@@ -60,6 +60,7 @@ __all__ = [
     "LLMProvider",
     "ModelConfig",
     "Provider",
+    "RetryConfig",
     "OllamaProvider",
     "OpenAIProvider",
     "create_provider",
