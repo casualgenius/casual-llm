@@ -18,6 +18,11 @@ try:
 except ImportError:
     AnthropicProvider = None  # type: ignore
 
+try:
+    from casual_llm.providers.google import GoogleProvider
+except ImportError:
+    GoogleProvider = None  # type: ignore
+
 
 def create_provider(
     model_config: ModelConfig,
@@ -92,6 +97,20 @@ def create_provider(
             timeout=timeout,
         )
 
+    elif model_config.provider == Provider.GOOGLE:
+        if GoogleProvider is None:
+            raise ImportError(
+                "Google provider requires the 'google-generativeai' package. "
+                "Install it with: pip install casual-llm[google]"
+            )
+
+        return GoogleProvider(
+            model=model_config.name,
+            api_key=model_config.api_key,
+            temperature=model_config.temperature,
+            timeout=timeout,
+        )
+
     else:
         raise ValueError(f"Unsupported provider: {model_config.provider}")
 
@@ -103,5 +122,6 @@ __all__ = [
     "OllamaProvider",
     "OpenAIProvider",
     "AnthropicProvider",
+    "GoogleProvider",
     "create_provider",
 ]
