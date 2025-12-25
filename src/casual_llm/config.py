@@ -61,3 +61,30 @@ class ModelConfig:
     base_url: str | None = None
     api_key: str | None = None
     temperature: float | None = None
+
+
+@dataclass
+class RetryConfig:
+    """
+    Configuration for retry behavior with exponential backoff.
+
+    Used to configure how API calls should be retried on transient failures.
+
+    Attributes:
+        max_attempts: Maximum number of retry attempts (default: 3)
+        backoff_factor: Multiplier for exponential backoff delay (default: 2.0)
+
+    Examples:
+        >>> from casual_llm.config import RetryConfig
+        >>>
+        >>> # Default configuration
+        >>> config = RetryConfig()
+        >>> print(config.max_attempts)  # 3
+        >>> print(config.backoff_factor)  # 2.0
+        >>>
+        >>> # Custom configuration
+        >>> config = RetryConfig(max_attempts=5, backoff_factor=1.5)
+    """
+
+    max_attempts: int = 3
+    backoff_factor: float = 2.0
