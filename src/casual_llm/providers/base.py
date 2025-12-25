@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Protocol, Literal
 
+from pydantic import BaseModel
+
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
 from casual_llm.usage import Usage
@@ -37,7 +39,7 @@ class LLMProvider(Protocol):
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] = "text",
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
         temperature: float | None = None,
@@ -47,7 +49,9 @@ class LLMProvider(Protocol):
 
         Args:
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format ("json" or "text")
+            response_format: Expected response format. Can be "json", "text", or a Pydantic
+                BaseModel class for JSON Schema-based structured output. When a Pydantic model
+                is provided, the LLM will be instructed to return JSON matching the schema.
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
             temperature: Temperature for this request (optional, overrides instance temperature)
@@ -57,6 +61,19 @@ class LLMProvider(Protocol):
 
         Raises:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
+
+        Examples:
+            >>> from pydantic import BaseModel
+            >>>
+            >>> class PersonInfo(BaseModel):
+            ...     name: str
+            ...     age: int
+            >>>
+            >>> # Pass Pydantic model for structured output
+            >>> response = await provider.chat(
+            ...     messages=[UserMessage(content="Tell me about a person")],
+            ...     response_format=PersonInfo  # Pass the class, not an instance
+            ... )
         """
         ...
 

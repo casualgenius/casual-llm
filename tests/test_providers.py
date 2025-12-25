@@ -3,11 +3,37 @@ Tests for LLM provider implementations.
 """
 
 import pytest
+from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
 from casual_llm.config import ModelConfig, Provider
 from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
 from casual_llm.usage import Usage
+
+
+# Test Pydantic models for JSON Schema tests
+class PersonInfo(BaseModel):
+    """Simple Pydantic model for testing"""
+
+    name: str
+    age: int
+
+
+class Address(BaseModel):
+    """Nested model for testing complex schemas"""
+
+    street: str
+    city: str
+    zip_code: str
+
+
+class PersonWithAddress(BaseModel):
+    """Pydantic model with nested structure for testing"""
+
+    name: str
+    age: int
+    address: Address
+
 
 # Try to import OpenAI provider - may not be available
 try:
@@ -187,6 +213,110 @@ class TestOllamaProvider:
             assert usage.completion_tokens == 20
             assert usage.total_tokens == 30
 
+    @pytest.mark.asyncio
+    async def test_json_schema_response_format(self, provider):
+        """Test that Pydantic model is correctly converted to JSON Schema for Ollama"""
+        mock_response = MagicMock()
+        mock_response.message.content = '{"name": "Alice", "age": 30}'
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Give me person info")]
+
+            result = await provider.chat(messages, response_format=PersonInfo)
+
+            assert isinstance(result, AssistantMessage)
+            assert '{"name": "Alice", "age": 30}' in result.content
+
+            # Verify the format parameter contains the JSON Schema
+            call_kwargs = mock_chat.call_args.kwargs
+            assert "format" in call_kwargs
+            schema = call_kwargs["format"]
+
+            # Verify it's a dict (JSON Schema), not a string
+            assert isinstance(schema, dict)
+
+            # Verify schema has expected properties
+            assert "properties" in schema
+            assert "name" in schema["properties"]
+            assert "age" in schema["properties"]
+            assert schema["properties"]["name"]["type"] == "string"
+            assert schema["properties"]["age"]["type"] == "integer"
+
+    @pytest.mark.asyncio
+    async def test_json_schema_nested_pydantic_model(self, provider):
+        """Test that complex nested Pydantic models work correctly"""
+        mock_response = MagicMock()
+        mock_response.message.content = '{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Give me person with address")]
+
+            result = await provider.chat(messages, response_format=PersonWithAddress)
+
+            assert isinstance(result, AssistantMessage)
+
+            # Verify the format parameter contains the nested JSON Schema
+            call_kwargs = mock_chat.call_args.kwargs
+            assert "format" in call_kwargs
+            schema = call_kwargs["format"]
+
+            # Verify it's a dict with properties
+            assert isinstance(schema, dict)
+            assert "properties" in schema
+
+            # Verify nested structure is present (either through $defs or inline)
+            # Pydantic v2 uses $defs for nested models
+            if "$defs" in schema:
+                assert "Address" in schema["$defs"]
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_json_format(self, provider):
+        """Test that existing 'json' format still works (backward compatibility)"""
+        mock_response = MagicMock()
+        mock_response.message.content = '{"status": "ok"}'
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Give me JSON")]
+
+            result = await provider.chat(messages, response_format="json")
+
+            assert isinstance(result, AssistantMessage)
+            assert '{"status": "ok"}' in result.content
+
+            # Verify format is set to "json" string (not a schema dict)
+            call_kwargs = mock_chat.call_args.kwargs
+            assert call_kwargs["format"] == "json"
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_text_format(self, provider):
+        """Test that existing 'text' format still works (backward compatibility)"""
+        mock_response = MagicMock()
+        mock_response.message.content = "Plain text response"
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Give me text")]
+
+            result = await provider.chat(messages, response_format="text")
+
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Plain text response"
+
+            # Verify no format parameter is set for text
+            call_kwargs = mock_chat.call_args.kwargs
+            assert "format" not in call_kwargs
+
 
 @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
 class TestOpenAIProvider:
@@ -361,6 +491,121 @@ class TestOpenAIProvider:
             assert usage.prompt_tokens == 15
             assert usage.completion_tokens == 25
             assert usage.total_tokens == 40
+
+    @pytest.mark.asyncio
+    async def test_json_schema_response_format(self, provider):
+        """Test that Pydantic model is correctly converted to JSON Schema for OpenAI"""
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content='{"name": "Alice", "age": 30}'))
+        ]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Give me person info")]
+
+            result = await provider.chat(messages, response_format=PersonInfo)
+
+            assert isinstance(result, AssistantMessage)
+            assert '{"name": "Alice", "age": 30}' in result.content
+
+            # Verify the response_format parameter contains the JSON Schema structure
+            call_kwargs = mock_create.call_args.kwargs
+            assert "response_format" in call_kwargs
+            response_format = call_kwargs["response_format"]
+
+            # Verify OpenAI json_schema format structure
+            assert response_format["type"] == "json_schema"
+            assert "json_schema" in response_format
+            assert response_format["json_schema"]["name"] == "PersonInfo"
+            assert "schema" in response_format["json_schema"]
+
+            # Verify schema has expected properties
+            schema = response_format["json_schema"]["schema"]
+            assert "properties" in schema
+            assert "name" in schema["properties"]
+            assert "age" in schema["properties"]
+            assert schema["properties"]["name"]["type"] == "string"
+            assert schema["properties"]["age"]["type"] == "integer"
+
+    @pytest.mark.asyncio
+    async def test_json_schema_nested_pydantic_model(self, provider):
+        """Test that complex nested Pydantic models work correctly"""
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(
+                message=MagicMock(
+                    content='{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+                )
+            )
+        ]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Give me person with address")]
+
+            result = await provider.chat(messages, response_format=PersonWithAddress)
+
+            assert isinstance(result, AssistantMessage)
+
+            # Verify the response_format parameter contains the nested JSON Schema
+            call_kwargs = mock_create.call_args.kwargs
+            assert "response_format" in call_kwargs
+            response_format = call_kwargs["response_format"]
+
+            # Verify OpenAI json_schema format structure
+            assert response_format["type"] == "json_schema"
+            assert response_format["json_schema"]["name"] == "PersonWithAddress"
+
+            schema = response_format["json_schema"]["schema"]
+            assert "properties" in schema
+
+            # Verify nested structure is present (either through $defs or inline)
+            # Pydantic v2 uses $defs for nested models
+            if "$defs" in schema:
+                assert "Address" in schema["$defs"]
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_json_format(self, provider):
+        """Test that existing 'json' format still works (backward compatibility)"""
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content='{"status": "ok"}'))]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Give me JSON")]
+
+            result = await provider.chat(messages, response_format="json")
+
+            assert isinstance(result, AssistantMessage)
+            assert '{"status": "ok"}' in result.content
+
+            # Verify response_format is set to json_object (not json_schema)
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["response_format"] == {"type": "json_object"}
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_text_format(self, provider):
+        """Test that existing 'text' format still works (backward compatibility)"""
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content="Plain text response"))]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Give me text")]
+
+            result = await provider.chat(messages, response_format="text")
+
+            assert isinstance(result, AssistantMessage)
+            assert result.content == "Plain text response"
+
+            # Verify no response_format parameter is set for text
+            call_kwargs = mock_create.call_args.kwargs
+            assert "response_format" not in call_kwargs
 
 
 class TestCreateProviderFactory:
