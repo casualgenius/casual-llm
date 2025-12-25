@@ -81,10 +81,23 @@ class ToolResultMessage(BaseModel):
 
 
 class UserMessage(BaseModel):
-    """Message from the user."""
+    """Message from the user.
+
+    Supports both simple text content and multimodal content (text + images).
+
+    Examples:
+        # Simple text content
+        UserMessage(content="Hello, world!")
+
+        # Multimodal content
+        UserMessage(content=[
+            TextContent(type="text", text="What's in this image?"),
+            ImageContent(type="image", source="https://example.com/image.jpg")
+        ])
+    """
 
     role: Literal["user"] = "user"
-    content: str | None
+    content: str | list[TextContent | ImageContent] | None
 
 
 class StreamChunk(BaseModel):
