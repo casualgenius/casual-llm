@@ -10,6 +10,10 @@ from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
 from casual_llm.usage import Usage
 
+# Import httpx and Ollama exceptions for retry testing
+import httpx
+from ollama import RequestError, ResponseError
+
 # Import OpenAI exceptions for retry testing
 try:
     from openai import (
@@ -374,6 +378,212 @@ class TestOllamaProvider:
             # Verify no format parameter is set for text
             call_kwargs = mock_chat.call_args.kwargs
             assert "format" not in call_kwargs
+
+    # --- Ollama Retry Behavior Tests ---
+
+    @pytest.fixture
+    def provider_with_retry(self):
+        """Create an OllamaProvider instance with retry config for testing"""
+        return OllamaProvider(
+            model="qwen2.5:7b-instruct",
+            host="http://localhost:11434",
+            temperature=0.7,
+            retry_config=RetryConfig(max_attempts=3, backoff_factor=2.0),
+        )
+
+    def _create_mock_connect_error(self):
+        """Create a mock httpx.ConnectError for testing"""
+        return httpx.ConnectError("Connection refused")
+
+    def _create_mock_timeout_error(self):
+        """Create a mock httpx.TimeoutException for testing"""
+        return httpx.TimeoutException("Request timed out")
+
+    def _create_mock_response_error(self):
+        """Create a mock ollama ResponseError for testing"""
+        return ResponseError("Internal server error")
+
+    def _create_mock_request_error(self):
+        """Create a mock ollama RequestError for testing (non-retryable)"""
+        return RequestError("Invalid request parameters")
+
+    def _create_mock_ollama_success_response(self, content="Success response"):
+        """Create a mock successful Ollama response"""
+        mock_response = MagicMock()
+        mock_response.message.content = content
+        mock_response.message.tool_calls = None
+        mock_response.prompt_eval_count = 10
+        mock_response.eval_count = 20
+        return mock_response
+
+    @pytest.mark.asyncio
+    async def test_connection_error_retry(self, provider_with_retry):
+        """Test that httpx.ConnectError triggers retry with exponential backoff"""
+        connect_error = self._create_mock_connect_error()
+        success_response = self._create_mock_ollama_success_response()
+
+        # First two calls fail with ConnectError, third succeeds
+        mock_chat = AsyncMock(
+            side_effect=[connect_error, connect_error, success_response]
+        )
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert result.content == "Success response"
+
+                # Verify retry attempts
+                assert mock_chat.call_count == 3
+
+                # Verify exponential backoff delays (1s, 2s for factor=2.0)
+                assert mock_sleep.call_count == 2
+                mock_sleep.assert_any_call(1.0)  # First retry: 2^0 = 1
+                mock_sleep.assert_any_call(2.0)  # Second retry: 2^1 = 2
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_retry(self, provider_with_retry):
+        """Test that httpx.TimeoutException triggers retry"""
+        timeout_error = self._create_mock_timeout_error()
+        success_response = self._create_mock_ollama_success_response()
+
+        mock_chat = AsyncMock(side_effect=[timeout_error, success_response])
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_chat.call_count == 2
+                assert mock_sleep.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_response_error_retry(self, provider_with_retry):
+        """Test that ollama ResponseError triggers retry"""
+        response_error = self._create_mock_response_error()
+        success_response = self._create_mock_ollama_success_response()
+
+        mock_chat = AsyncMock(side_effect=[response_error, success_response])
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_chat.call_count == 2
+                assert mock_sleep.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_request_error_no_retry(self, provider_with_retry):
+        """Test that ollama RequestError fails immediately without retry"""
+        request_error = self._create_mock_request_error()
+
+        mock_chat = AsyncMock(side_effect=request_error)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(RequestError):
+                    await provider_with_retry.chat(messages)
+
+                # Verify no retries occurred
+                assert mock_chat.call_count == 1
+                assert mock_sleep.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_ollama_success_after_retry(self, provider_with_retry):
+        """Test that response is returned successfully after transient failures"""
+        connect_error = self._create_mock_connect_error()
+        success_response = self._create_mock_ollama_success_response("Finally succeeded!")
+
+        # First call fails, second succeeds
+        mock_chat = AsyncMock(side_effect=[connect_error, success_response])
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()):
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert result.content == "Finally succeeded!"
+                assert mock_chat.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_ollama_max_attempts_exhausted(self, provider_with_retry):
+        """Test that original exception is raised after all retries fail"""
+        connect_error = self._create_mock_connect_error()
+
+        # All 3 attempts fail
+        mock_chat = AsyncMock(side_effect=connect_error)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(httpx.ConnectError):
+                    await provider_with_retry.chat(messages)
+
+                # Verify all attempts were made
+                assert mock_chat.call_count == 3
+
+                # Verify backoff delays (only 2 sleeps, before attempts 2 and 3)
+                assert mock_sleep.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_ollama_no_retry_when_config_none(self, provider):
+        """Test that no retries occur when retry_config is None"""
+        connect_error = self._create_mock_connect_error()
+
+        mock_chat = AsyncMock(side_effect=connect_error)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(httpx.ConnectError):
+                    await provider.chat(messages)
+
+                # Verify only one attempt (no retries)
+                assert mock_chat.call_count == 1
+                assert mock_sleep.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_ollama_custom_backoff_factor(self):
+        """Test that custom backoff_factor is used correctly"""
+        provider = OllamaProvider(
+            model="qwen2.5:7b-instruct",
+            host="http://localhost:11434",
+            retry_config=RetryConfig(max_attempts=3, backoff_factor=3.0),
+        )
+
+        connect_error = httpx.ConnectError("Connection refused")
+
+        mock_response = MagicMock()
+        mock_response.message.content = "Success"
+        mock_response.message.tool_calls = None
+        mock_response.prompt_eval_count = 10
+        mock_response.eval_count = 20
+
+        mock_chat = AsyncMock(
+            side_effect=[connect_error, connect_error, mock_response]
+        )
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_chat.call_count == 3
+
+                # Verify custom backoff factor: 3^0=1, 3^1=3
+                mock_sleep.assert_any_call(1.0)  # First retry: 3^0 = 1
+                mock_sleep.assert_any_call(3.0)  # Second retry: 3^1 = 3
 
 
 @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
