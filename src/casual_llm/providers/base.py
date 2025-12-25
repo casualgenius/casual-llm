@@ -7,9 +7,11 @@ using standard OpenAI-compatible message formats.
 
 from __future__ import annotations
 
-from typing import Protocol, Literal
+from typing import Protocol, Literal, AsyncIterator
 
-from casual_llm.messages import ChatMessage, AssistantMessage
+from pydantic import BaseModel
+
+from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
 from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 
@@ -37,7 +39,7 @@ class LLMProvider(Protocol):
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] = "text",
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
         temperature: float | None = None,
@@ -47,7 +49,9 @@ class LLMProvider(Protocol):
 
         Args:
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format ("json" or "text")
+            response_format: Expected response format. Can be "json", "text", or a Pydantic
+                BaseModel class for JSON Schema-based structured output. When a Pydantic model
+                is provided, the LLM will be instructed to return JSON matching the schema.
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
             temperature: Temperature for this request (optional, overrides instance temperature)
@@ -57,6 +61,65 @@ class LLMProvider(Protocol):
 
         Raises:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
+
+        Examples:
+            >>> from pydantic import BaseModel
+            >>>
+            >>> class PersonInfo(BaseModel):
+            ...     name: str
+            ...     age: int
+            >>>
+            >>> # Pass Pydantic model for structured output
+            >>> response = await provider.chat(
+            ...     messages=[UserMessage(content="Tell me about a person")],
+            ...     response_format=PersonInfo  # Pass the class, not an instance
+            ... )
+        """
+        ...
+
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """
+        Stream a chat response from the LLM.
+
+        This method yields response chunks in real-time as they are generated,
+        enabling progressive display in chat interfaces.
+
+        Args:
+            messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
+            response_format: Expected response format. Can be "json", "text", or a Pydantic
+                BaseModel class for JSON Schema-based structured output. When a Pydantic model
+                is provided, the LLM will be instructed to return JSON matching the schema.
+            max_tokens: Maximum tokens to generate (optional)
+            tools: List of tools available for the LLM to call (optional, may not work
+                with all providers during streaming)
+            temperature: Temperature for this request (optional, overrides instance temperature)
+
+        Yields:
+            StreamChunk objects containing content fragments as tokens are generated.
+            Each chunk has a `content` attribute with the text fragment.
+
+        Raises:
+            Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
+
+        Examples:
+            >>> from casual_llm import UserMessage
+            >>>
+            >>> # Stream response and print tokens as they arrive
+            >>> async for chunk in provider.stream([UserMessage(content="Tell me a story")]):
+            ...     print(chunk.content, end="", flush=True)
+            >>>
+            >>> # Collect full response from stream
+            >>> chunks = []
+            >>> async for chunk in provider.stream([UserMessage(content="Hello")]):
+            ...     chunks.append(chunk.content)
+            >>> full_response = "".join(chunks)
         """
         ...
 

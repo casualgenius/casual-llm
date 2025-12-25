@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2025-01-XX
+## [0.2.0] - 2025-01-XX
+
+### Added
+- **Pydantic model support for structured output**: `response_format` parameter now accepts Pydantic `BaseModel` classes for JSON Schema-based structured output
+- Both `OllamaProvider` and `OpenAIProvider` support Pydantic models for automatic schema generation
+
+### Changed
+- **Message converters refactored into packages**: Split `message_converters.py` and `tool_converters.py` into separate packages with `openai.py` and `ollama.py` modules
+- **Type safety improvements**: Added proper SDK types (`ChatCompletionMessageToolCall`, `ChatCompletionToolParam`) for better type checking
+- **Temperature defaults to None**: Changed default temperature from 0.1 to None (uses provider defaults)
+- **Usage model uses computed field**: Refactored `Usage.total_tokens` to use Pydantic's `@computed_field` instead of custom `__init__`
+
+### Removed
+- **Retry logic and metrics tracking**: Removed `max_retries` and `enable_metrics` parameters from `OllamaProvider` to keep the library lightweight and focused
+- **Removed `tool_definitions.py` example**: Consolidated examples to focus on practical usage patterns
+
+### Fixed
+- Tool calling with Ollama: Fixed argument conversion between JSON strings and dicts for proper round-trip handling
+
+## [0.1.0] - 2025-01-03
 
 Initial release of casual-llm - a lightweight, protocol-based LLM provider abstraction library.
 
@@ -72,4 +91,5 @@ Initial release of casual-llm - a lightweight, protocol-based LLM provider abstr
 - `ollama>=0.6.1` - Official Ollama Python library
 - `openai>=1.0.0` - Optional, for OpenAI provider
 
+[0.2.0]: https://github.com/casualgenius/casual-llm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/casualgenius/casual-llm/releases/tag/v0.1.0

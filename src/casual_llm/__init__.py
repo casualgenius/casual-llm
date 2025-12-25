@@ -7,7 +7,7 @@ A simple, protocol-based library for working with different LLM providers
 Part of the casual-* ecosystem of lightweight AI tools.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Model configuration
 from casual_llm.config import ModelConfig, Provider
@@ -29,6 +29,7 @@ from casual_llm.messages import (
     ToolResultMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
+    StreamChunk,
 )
 
 # Tool models
@@ -71,6 +72,7 @@ __all__ = [
     "ToolResultMessage",
     "AssistantToolCall",
     "AssistantToolCallFunction",
+    "StreamChunk",
     # Tools
     "Tool",
     "ToolParameter",
