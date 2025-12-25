@@ -5,7 +5,7 @@ Tests for LLM provider implementations.
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
-from casual_llm.config import ModelConfig, Provider
+from casual_llm.config import ModelConfig, Provider, RetryConfig
 from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
 from casual_llm.usage import Usage
@@ -42,6 +42,50 @@ try:
     OPENAI_AVAILABLE = OpenAIProvider is not None
 except ImportError:
     OPENAI_AVAILABLE = False
+
+
+class TestRetryConfig:
+    """Tests for RetryConfig dataclass"""
+
+    def test_retry_config_defaults(self):
+        """Test that RetryConfig has correct default values"""
+        config = RetryConfig()
+
+        assert config.max_attempts == 3
+        assert config.backoff_factor == 2.0
+
+    def test_retry_config_custom_values(self):
+        """Test that custom values are stored correctly"""
+        config = RetryConfig(max_attempts=5, backoff_factor=1.5)
+
+        assert config.max_attempts == 5
+        assert config.backoff_factor == 1.5
+
+    def test_retry_config_partial_custom_values(self):
+        """Test that partial custom values work with defaults"""
+        # Only override max_attempts
+        config1 = RetryConfig(max_attempts=10)
+        assert config1.max_attempts == 10
+        assert config1.backoff_factor == 2.0  # default
+
+        # Only override backoff_factor
+        config2 = RetryConfig(backoff_factor=3.0)
+        assert config2.max_attempts == 3  # default
+        assert config2.backoff_factor == 3.0
+
+    def test_retry_config_edge_case_values(self):
+        """Test edge case values for RetryConfig"""
+        # Zero max_attempts (disables retry)
+        config1 = RetryConfig(max_attempts=0)
+        assert config1.max_attempts == 0
+
+        # Backoff factor of 1.0 (constant delay)
+        config2 = RetryConfig(backoff_factor=1.0)
+        assert config2.backoff_factor == 1.0
+
+        # Single attempt
+        config3 = RetryConfig(max_attempts=1)
+        assert config3.max_attempts == 1
 
 
 class TestOllamaProvider:
