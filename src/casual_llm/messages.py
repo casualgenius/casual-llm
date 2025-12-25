@@ -56,5 +56,12 @@ class UserMessage(BaseModel):
     content: str | None
 
 
+class StreamChunk(BaseModel):
+    """A chunk of streamed response content from an LLM provider."""
+
+    content: str
+    finish_reason: str | None = None
+
+
 ChatMessage: TypeAlias = AssistantMessage | SystemMessage | ToolResultMessage | UserMessage
 """Type alias for any chat message type (user, assistant, system, or tool result)."""
