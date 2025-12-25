@@ -1,0 +1,15 @@
+{
+  "discovered_files": {
+    "src/casual_llm/providers/base.py": {
+      "description": "LLMProvider Protocol defines the interface for all LLM providers. The response_format parameter now accepts Literal[\"json\", \"text\"] | type[BaseModel] to support JSON Schema structured output.",
+      "category": "architecture",
+      "discovered_at": "2025-12-25T04:46:35.892082+00:00"
+    },
+    "src/casual_llm/providers/ollama.py": {
+      "description": "Ollama provider chat() method now accepts Pydantic BaseModel classes as response_format. When a Pydantic model is passed, it extracts the JSON Schema using model_json_schema() and passes it directly to Ollama's format parameter.",
+      "category": "api",
+      "discovered_at": "2025-12-25T04:53:25.815363+00:00"
+    }
+  },
+  "last_updated": "2025-12-25T04:53:25.815363+00:00"
+}

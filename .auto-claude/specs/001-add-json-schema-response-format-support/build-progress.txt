@@ -133,3 +133,41 @@ User Action Required:
 Run manually to verify: `ruff check src/ && black --check src/`
 
 === END SESSION 3 ===
+
+=== SESSION 4 (subtask-5-3: Run type checking (mypy)) ===
+Date: 2025-12-25
+
+Manual Type Review for Mypy:
+Environment limitation: mypy, uv run mypy commands blocked by callback hook
+
+Manual type annotation review performed:
+
+✓ src/casual_llm/providers/base.py
+  - Uses `from __future__ import annotations` for forward references
+  - Uses `Protocol` from typing correctly
+  - Uses `Literal["json", "text"] | type[BaseModel]` - correct union syntax for Python 3.10+
+  - All return types properly annotated
+
+✓ src/casual_llm/providers/openai.py
+  - Uses `Literal["json", "text"] | type[BaseModel]` matching the protocol
+  - Proper runtime type checking with isinstance() and issubclass()
+  - All dict typing uses `dict[str, Any]` consistently
+
+✓ src/casual_llm/providers/ollama.py
+  - Uses identical type signatures as openai.py
+  - Same pattern for response_format handling
+  - All dict typing uses `dict[str, Any]` consistently
+
+✓ src/casual_llm/providers/__init__.py
+  - Uses `# type: ignore` correctly for OpenAIProvider = None fallback
+  - Factory function properly returns `LLMProvider` type
+
+Type Annotations Summary:
+- No type errors found in manual review
+- All type annotations are consistent with Python 3.10+ syntax
+- Union types use modern `|` syntax with __future__ annotations
+
+User Action Required:
+Run manually to verify: `mypy src/casual_llm/providers/`
+
+=== END SESSION 4 ===
