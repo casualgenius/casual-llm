@@ -109,3 +109,50 @@ async def fetch_image_as_base64(
         raise ImageFetchError(f"Timeout fetching image from {url}") from e
     except httpx.RequestError as e:
         raise ImageFetchError(f"Error fetching image from {url}: {e}") from e
+
+
+def strip_base64_prefix(data: str) -> str:
+    """Strip the data URI prefix from a base64-encoded string.
+
+    Removes the 'data:<media_type>;base64,' prefix if present,
+    returning only the raw base64 data.
+
+    Args:
+        data: A base64 string, optionally with a data URI prefix.
+
+    Returns:
+        The raw base64 data without any prefix.
+
+    Example:
+        >>> strip_base64_prefix("data:image/png;base64,abc123")
+        'abc123'
+        >>> strip_base64_prefix("abc123")
+        'abc123'
+    """
+    # Check for data URI format: data:<media_type>;base64,<data>
+    if data.startswith("data:") and ";base64," in data:
+        # Split on ";base64," and return the data portion
+        return data.split(";base64,", 1)[1]
+    return data
+
+
+def add_base64_prefix(base64_data: str, media_type: str = "image/png") -> str:
+    """Add a data URI prefix to raw base64 data.
+
+    Creates a complete data URI by prepending the appropriate prefix
+    to raw base64-encoded data.
+
+    Args:
+        base64_data: The raw base64-encoded data (without prefix).
+        media_type: The MIME type of the data. Defaults to "image/png".
+
+    Returns:
+        A complete data URI string.
+
+    Example:
+        >>> add_base64_prefix("abc123", "image/png")
+        'data:image/png;base64,abc123'
+        >>> add_base64_prefix("xyz789", "image/jpeg")
+        'data:image/jpeg;base64,xyz789'
+    """
+    return f"data:{media_type};base64,{base64_data}"
