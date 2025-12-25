@@ -22,7 +22,7 @@ def create_provider(
     Factory function to create an LLM provider from a ModelConfig.
 
     Args:
-        model_config: Model configuration (name, provider, base_url, api_key, temperature)
+        model_config: Model configuration (name, provider, base_url, api_key, temperature, retry_config)
         timeout: HTTP timeout in seconds (default: 60.0)
 
     Returns:
@@ -55,6 +55,7 @@ def create_provider(
             host=host,
             temperature=model_config.temperature,
             timeout=timeout,
+            retry_config=model_config.retry_config,
         )
 
     elif model_config.provider == Provider.OPENAI:
@@ -70,6 +71,7 @@ def create_provider(
             base_url=model_config.base_url,
             temperature=model_config.temperature,
             timeout=timeout,
+            retry_config=model_config.retry_config,
         )
 
     else:
