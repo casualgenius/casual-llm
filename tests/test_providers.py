@@ -10,6 +10,20 @@ from casual_llm.providers import OllamaProvider, create_provider
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage
 from casual_llm.usage import Usage
 
+# Import OpenAI exceptions for retry testing
+try:
+    from openai import (
+        RateLimitError,
+        APIConnectionError,
+        InternalServerError,
+        AuthenticationError,
+        BadRequestError,
+    )
+
+    OPENAI_EXCEPTIONS_AVAILABLE = True
+except ImportError:
+    OPENAI_EXCEPTIONS_AVAILABLE = False
+
 
 # Test Pydantic models for JSON Schema tests
 class PersonInfo(BaseModel):
@@ -650,6 +664,288 @@ class TestOpenAIProvider:
             # Verify no response_format parameter is set for text
             call_kwargs = mock_create.call_args.kwargs
             assert "response_format" not in call_kwargs
+
+    # --- OpenAI Retry Behavior Tests ---
+
+    @pytest.fixture
+    def provider_with_retry(self):
+        """Create an OpenAIProvider instance with retry config for testing"""
+        return OpenAIProvider(
+            model="gpt-4o-mini",
+            api_key="sk-test-key",
+            temperature=0.7,
+            retry_config=RetryConfig(max_attempts=3, backoff_factor=2.0),
+        )
+
+    def _create_mock_rate_limit_error(self):
+        """Create a mock RateLimitError for testing"""
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {}
+        return RateLimitError(
+            message="Rate limit exceeded",
+            response=mock_response,
+            body=None,
+        )
+
+    def _create_mock_internal_server_error(self):
+        """Create a mock InternalServerError for testing"""
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.headers = {}
+        return InternalServerError(
+            message="Internal server error",
+            response=mock_response,
+            body=None,
+        )
+
+    def _create_mock_api_connection_error(self):
+        """Create a mock APIConnectionError for testing"""
+        mock_request = MagicMock()
+        return APIConnectionError(request=mock_request)
+
+    def _create_mock_auth_error(self):
+        """Create a mock AuthenticationError for testing"""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.headers = {}
+        return AuthenticationError(
+            message="Invalid API key",
+            response=mock_response,
+            body=None,
+        )
+
+    def _create_mock_bad_request_error(self):
+        """Create a mock BadRequestError for testing"""
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.headers = {}
+        return BadRequestError(
+            message="Bad request",
+            response=mock_response,
+            body=None,
+        )
+
+    def _create_mock_success_response(self, content="Success response"):
+        """Create a mock successful API response"""
+        mock_message = MagicMock(content=content)
+        del mock_message.tool_calls  # Remove to match real behavior
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=mock_message)]
+        mock_completion.usage = None
+        return mock_completion
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_retry(self, provider_with_retry):
+        """Test that RateLimitError triggers retry with exponential backoff"""
+        rate_limit_error = self._create_mock_rate_limit_error()
+        success_response = self._create_mock_success_response()
+
+        # First two calls fail with RateLimitError, third succeeds
+        mock_create = AsyncMock(
+            side_effect=[rate_limit_error, rate_limit_error, success_response]
+        )
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert result.content == "Success response"
+
+                # Verify retry attempts
+                assert mock_create.call_count == 3
+
+                # Verify exponential backoff delays (1s, 2s for factor=2.0)
+                assert mock_sleep.call_count == 2
+                mock_sleep.assert_any_call(1.0)  # First retry: 2^0 = 1
+                mock_sleep.assert_any_call(2.0)  # Second retry: 2^1 = 2
+
+    @pytest.mark.asyncio
+    async def test_server_error_retry(self, provider_with_retry):
+        """Test that InternalServerError triggers retry"""
+        server_error = self._create_mock_internal_server_error()
+        success_response = self._create_mock_success_response()
+
+        mock_create = AsyncMock(side_effect=[server_error, success_response])
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_create.call_count == 2
+                assert mock_sleep.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_connection_error_retry(self, provider_with_retry):
+        """Test that APIConnectionError triggers retry"""
+        connection_error = self._create_mock_api_connection_error()
+        success_response = self._create_mock_success_response()
+
+        mock_create = AsyncMock(side_effect=[connection_error, success_response])
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_create.call_count == 2
+                assert mock_sleep.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_auth_error_no_retry(self, provider_with_retry):
+        """Test that AuthenticationError fails immediately without retry"""
+        auth_error = self._create_mock_auth_error()
+
+        mock_create = AsyncMock(side_effect=auth_error)
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(AuthenticationError):
+                    await provider_with_retry.chat(messages)
+
+                # Verify no retries occurred
+                assert mock_create.call_count == 1
+                assert mock_sleep.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_bad_request_no_retry(self, provider_with_retry):
+        """Test that BadRequestError fails immediately without retry"""
+        bad_request_error = self._create_mock_bad_request_error()
+
+        mock_create = AsyncMock(side_effect=bad_request_error)
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(BadRequestError):
+                    await provider_with_retry.chat(messages)
+
+                # Verify no retries occurred
+                assert mock_create.call_count == 1
+                assert mock_sleep.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_success_after_retry(self, provider_with_retry):
+        """Test that response is returned successfully after transient failures"""
+        rate_limit_error = self._create_mock_rate_limit_error()
+        success_response = self._create_mock_success_response("Finally succeeded!")
+
+        # First call fails, second succeeds
+        mock_create = AsyncMock(side_effect=[rate_limit_error, success_response])
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()):
+                messages = [UserMessage(content="Hello")]
+                result = await provider_with_retry.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert result.content == "Finally succeeded!"
+                assert mock_create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_max_attempts_exhausted(self, provider_with_retry):
+        """Test that original exception is raised after all retries fail"""
+        rate_limit_error = self._create_mock_rate_limit_error()
+
+        # All 3 attempts fail
+        mock_create = AsyncMock(side_effect=rate_limit_error)
+
+        with patch.object(
+            provider_with_retry.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(RateLimitError):
+                    await provider_with_retry.chat(messages)
+
+                # Verify all attempts were made
+                assert mock_create.call_count == 3
+
+                # Verify backoff delays (only 2 sleeps, before attempts 2 and 3)
+                assert mock_sleep.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_retry_when_config_none(self, provider):
+        """Test that no retries occur when retry_config is None"""
+        rate_limit_error = self._create_mock_rate_limit_error()
+
+        mock_create = AsyncMock(side_effect=rate_limit_error)
+
+        with patch.object(
+            provider.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+
+                with pytest.raises(RateLimitError):
+                    await provider.chat(messages)
+
+                # Verify only one attempt (no retries)
+                assert mock_create.call_count == 1
+                assert mock_sleep.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_custom_backoff_factor(self):
+        """Test that custom backoff_factor is used correctly"""
+        provider = OpenAIProvider(
+            model="gpt-4o-mini",
+            api_key="sk-test-key",
+            retry_config=RetryConfig(max_attempts=3, backoff_factor=3.0),
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {}
+        rate_limit_error = RateLimitError(
+            message="Rate limit exceeded",
+            response=mock_response,
+            body=None,
+        )
+
+        mock_message = MagicMock(content="Success")
+        del mock_message.tool_calls
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=mock_message)]
+        mock_completion.usage = None
+
+        mock_create = AsyncMock(
+            side_effect=[rate_limit_error, rate_limit_error, mock_completion]
+        )
+
+        with patch.object(
+            provider.client.chat.completions, "create", new=mock_create
+        ):
+            with patch("asyncio.sleep", new=AsyncMock()) as mock_sleep:
+                messages = [UserMessage(content="Hello")]
+                result = await provider.chat(messages)
+
+                assert isinstance(result, AssistantMessage)
+                assert mock_create.call_count == 3
+
+                # Verify custom backoff factor: 3^0=1, 3^1=3
+                mock_sleep.assert_any_call(1.0)  # First retry: 3^0 = 1
+                mock_sleep.assert_any_call(3.0)  # Second retry: 3^1 = 3
 
 
 class TestCreateProviderFactory:
