@@ -4,9 +4,12 @@ Ollama LLM provider using the official ollama library.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Literal
-from ollama import AsyncClient
+
+import httpx
+from ollama import AsyncClient, RequestError, ResponseError
 from pydantic import BaseModel
 
 from casual_llm.config import RetryConfig
@@ -20,6 +23,12 @@ from casual_llm.message_converters import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Exceptions that should trigger retry with exponential backoff
+# httpx.ConnectError: Connection failed (server down, network issues)
+# httpx.TimeoutException: Request timed out
+# ResponseError: Server-side errors (we'll check for 5xx status codes)
+RETRYABLE_EXCEPTIONS = (httpx.ConnectError, httpx.TimeoutException, ResponseError)
 
 
 class OllamaProvider:
@@ -151,7 +160,52 @@ class OllamaProvider:
             logger.debug(f"Added {len(converted_tools)} tools to request")
 
         logger.debug(f"Generating with model {self.model}")
-        response = await self.client.chat(**request_kwargs)
+
+        # Determine number of attempts based on retry config
+        max_attempts = (
+            self.retry_config.max_attempts
+            if self.retry_config and self.retry_config.max_attempts > 0
+            else 1
+        )
+
+        last_exception: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await self.client.chat(**request_kwargs)
+                break  # Success, exit retry loop
+            except RETRYABLE_EXCEPTIONS as e:
+                # For ResponseError, only retry on server errors (5xx)
+                # ResponseError doesn't have a status_code attribute directly,
+                # but we can check the error message or treat all ResponseErrors as retryable
+                # since they typically indicate server-side issues
+                last_exception = e
+
+                # If this was the last attempt, raise the exception
+                if attempt >= max_attempts:
+                    logger.warning(
+                        f"All {max_attempts} attempts failed for model {self.model}"
+                    )
+                    raise
+
+                # Calculate exponential backoff delay: backoff_factor^(attempt-1)
+                # For attempt 1: delay = 1s, attempt 2: delay = 2s, attempt 3: delay = 4s (with factor=2.0)
+                backoff_factor = (
+                    self.retry_config.backoff_factor if self.retry_config else 2.0
+                )
+                delay = backoff_factor ** (attempt - 1)
+
+                logger.warning(
+                    f"Retry attempt {attempt}/{max_attempts} for model {self.model} "
+                    f"after {delay:.1f}s delay due to {type(e).__name__}: {e}"
+                )
+
+                await asyncio.sleep(delay)
+        else:
+            # This else clause is reached if the loop completes without break
+            # This should only happen if max_attempts is 0, which we guard against
+            if last_exception:
+                raise last_exception
 
         # Extract message from response
         response_message = response.message
