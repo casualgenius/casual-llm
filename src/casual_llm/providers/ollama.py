@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 from ollama import AsyncClient
+from pydantic import BaseModel
 
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
@@ -69,7 +70,7 @@ class OllamaProvider:
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] = "text",
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
         temperature: float | None = None,
@@ -79,7 +80,10 @@ class OllamaProvider:
 
         Args:
             messages: Conversation messages (ChatMessage format)
-            response_format: "json" for structured output, "text" for plain text
+            response_format: "json" for JSON output, "text" for plain text, or a Pydantic
+                BaseModel class for JSON Schema-based structured output. When a Pydantic
+                model is provided, the LLM will be instructed to return JSON matching the
+                schema.
             max_tokens: Maximum tokens to generate (optional)
             tools: List of tools available for the LLM to call (optional)
             temperature: Temperature for this request (optional, overrides instance temperature)
@@ -90,6 +94,19 @@ class OllamaProvider:
         Raises:
             ResponseError: If the request could not be fulfilled
             RequestError: If the request was invalid
+
+        Examples:
+            >>> from pydantic import BaseModel
+            >>>
+            >>> class PersonInfo(BaseModel):
+            ...     name: str
+            ...     age: int
+            >>>
+            >>> # Pass Pydantic model for structured output
+            >>> response = await provider.chat(
+            ...     messages=[UserMessage(content="Tell me about a person")],
+            ...     response_format=PersonInfo  # Pass the class, not an instance
+            ... )
         """
         # Convert messages to Ollama format using converter
         chat_messages = convert_messages_to_ollama(messages)
@@ -113,9 +130,15 @@ class OllamaProvider:
             "options": options,
         }
 
-        # Add format for JSON responses
+        # Handle response_format: "json", "text", or Pydantic model class
         if response_format == "json":
             request_kwargs["format"] = "json"
+        elif isinstance(response_format, type) and issubclass(response_format, BaseModel):
+            # Extract JSON Schema from Pydantic model and pass directly to format
+            schema = response_format.model_json_schema()
+            request_kwargs["format"] = schema
+            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+        # "text" is the default - no format parameter needed
 
         # Add tools if provided
         if tools:
