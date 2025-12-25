@@ -249,7 +249,10 @@ class TestOllamaProvider:
     async def test_json_schema_nested_pydantic_model(self, provider):
         """Test that complex nested Pydantic models work correctly"""
         mock_response = MagicMock()
-        mock_response.message.content = '{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+        mock_response.message.content = (
+            '{"name": "Bob", "age": 25, "address": '
+            '{"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+        )
         mock_response.message.tool_calls = None
 
         mock_chat = AsyncMock(return_value=mock_response)
@@ -636,7 +639,10 @@ class TestOpenAIProvider:
         mock_completion.choices = [
             MagicMock(
                 message=MagicMock(
-                    content='{"name": "Bob", "age": 25, "address": {"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+                    content=(
+                        '{"name": "Bob", "age": 25, "address": '
+                        '{"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
+                    )
                 )
             )
         ]
@@ -720,9 +726,7 @@ class TestOpenAIProvider:
                 MagicMock(
                     choices=[MagicMock(delta=MagicMock(content=" world"), finish_reason=None)]
                 ),
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="!"), finish_reason="stop")]
-                ),
+                MagicMock(choices=[MagicMock(delta=MagicMock(content="!"), finish_reason="stop")]),
             ]
             for chunk in chunks:
                 yield chunk

@@ -46,7 +46,8 @@ class OpenAIProvider:
             api_key: API key (optional, can use OPENAI_API_KEY env var)
             base_url: Base URL for API (e.g., "https://openrouter.ai/api/v1")
             organization: OpenAI organization ID (optional)
-            temperature: Temperature for generation (0.0-1.0, optional - uses OpenAI default if not set)
+            temperature: Temperature for generation (0.0-1.0, optional - uses OpenAI
+                default if not set)
             timeout: HTTP request timeout in seconds
             extra_kwargs: Additional kwargs to pass to client.chat.completions.create()
         """

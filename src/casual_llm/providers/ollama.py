@@ -42,7 +42,8 @@ class OllamaProvider:
         Args:
             model: Model name (e.g., "qwen2.5:7b-instruct")
             host: Ollama server URL (e.g., "http://localhost:11434")
-            temperature: Temperature for generation (0.0-1.0, optional - uses Ollama default if not set)
+            temperature: Temperature for generation (0.0-1.0, optional - uses Ollama
+                default if not set)
             timeout: HTTP request timeout in seconds
         """
         self.model = model
