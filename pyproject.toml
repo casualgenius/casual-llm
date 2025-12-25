@@ -66,6 +66,13 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 
+[[tool.mypy.overrides]]
+module = [
+    "anthropic.*",
+    "google.*",
+]
+ignore_missing_imports = true
+
 [dependency-groups]
 dev = [
     "openai>=2.8.1",

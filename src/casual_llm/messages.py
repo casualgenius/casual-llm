@@ -35,7 +35,7 @@ class ImageContent(BaseModel):
     """
 
     type: Literal["image"] = "image"
-    source: str | dict
+    source: str | dict[str, str]
     """URL string or dict with {type: "base64", data: "..."} format."""
     media_type: str = "image/jpeg"
     """MIME type of the image (e.g., image/jpeg, image/png, image/gif, image/webp)."""
