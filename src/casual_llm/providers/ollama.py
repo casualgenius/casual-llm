@@ -9,6 +9,7 @@ from typing import Any, Literal
 from ollama import AsyncClient
 from pydantic import BaseModel
 
+from casual_llm.config import RetryConfig
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
 from casual_llm.usage import Usage
@@ -35,6 +36,7 @@ class OllamaProvider:
         host: str = "http://localhost:11434",
         temperature: float | None = None,
         timeout: float = 60.0,
+        retry_config: RetryConfig | None = None,
     ):
         """
         Initialize Ollama provider.
@@ -44,11 +46,13 @@ class OllamaProvider:
             host: Ollama server URL (e.g., "http://localhost:11434")
             temperature: Temperature for generation (0.0-1.0, optional - uses Ollama default if not set)
             timeout: HTTP request timeout in seconds
+            retry_config: Configuration for retry behavior with exponential backoff (optional)
         """
         self.model = model
         self.host = host.rstrip("/")  # Remove trailing slashes
         self.temperature = temperature
         self.timeout = timeout
+        self.retry_config = retry_config
 
         # Create async client
         self.client = AsyncClient(host=self.host, timeout=timeout)
