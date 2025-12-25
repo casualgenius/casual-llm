@@ -169,7 +169,8 @@ class AnthropicProvider:
             ... )
         """
         # Convert messages to Anthropic format (returns messages and system prompt separately)
-        anthropic_messages, system_prompt = convert_messages_to_anthropic(messages)
+        # This is async because URL images need to be fetched and converted to base64
+        anthropic_messages, system_prompt = await convert_messages_to_anthropic(messages)
         logger.debug(f"Converted {len(messages)} messages to Anthropic format")
 
         # Use provided temperature or fall back to instance temperature
@@ -296,7 +297,8 @@ class AnthropicProvider:
             ...     print(chunk.content, end="", flush=True)
         """
         # Convert messages to Anthropic format
-        anthropic_messages, system_prompt = convert_messages_to_anthropic(messages)
+        # This is async because URL images need to be fetched and converted to base64
+        anthropic_messages, system_prompt = await convert_messages_to_anthropic(messages)
         logger.debug(f"Converted {len(messages)} messages to Anthropic format for streaming")
 
         # Use provided temperature or fall back to instance temperature

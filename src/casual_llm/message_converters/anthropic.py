@@ -14,7 +14,11 @@ from casual_llm.messages import (
     TextContent,
     ImageContent,
 )
-from casual_llm.utils.image import strip_base64_prefix
+from casual_llm.utils.image import (
+    strip_base64_prefix,
+    fetch_image_as_base64,
+    ImageFetchError,
+)
 
 if TYPE_CHECKING:
     from anthropic.types import ToolUseBlock
@@ -22,18 +26,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _convert_image_to_anthropic(image: ImageContent) -> dict[str, Any]:
+async def _convert_image_to_anthropic(image: ImageContent) -> dict[str, Any]:
     """
     Convert ImageContent to Anthropic image format.
 
     Anthropic expects images in the format:
     {"type": "image", "source": {"type": "base64", "media_type": "...", "data": "..."}}
 
-    For URL sources, Anthropic supports:
-    {"type": "image", "source": {"type": "url", "url": "..."}}
+    For URL sources, this function fetches the image and converts to base64,
+    since Anthropic requires base64-encoded data rather than URL references.
 
     Note: Unlike OpenAI, Anthropic does NOT use data URI format. The base64 data
     must be raw (no 'data:image/...;base64,' prefix).
+
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
     """
     if isinstance(image.source, str):
         # Check if it's a data URI or a URL
@@ -49,12 +56,22 @@ def _convert_image_to_anthropic(image: ImageContent) -> dict[str, Any]:
                 },
             }
         else:
-            # Regular URL - use URL source type
+            # Regular URL - fetch and convert to base64
+            # Anthropic requires base64 data, not URL references
+            logger.debug(f"Fetching image from URL for Anthropic: {image.source}")
+            base64_data, fetched_media_type = await fetch_image_as_base64(image.source)
+            # Use fetched media type if not explicitly specified
+            media_type = (
+                image.media_type
+                if image.media_type != "image/jpeg"  # not the default
+                else fetched_media_type
+            )
             return {
                 "type": "image",
                 "source": {
-                    "type": "url",
-                    "url": image.source,
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": base64_data,
                 },
             }
     else:
@@ -72,7 +89,7 @@ def _convert_image_to_anthropic(image: ImageContent) -> dict[str, Any]:
         }
 
 
-def _convert_user_content_to_anthropic(
+async def _convert_user_content_to_anthropic(
     content: str | list[TextContent | ImageContent] | None,
 ) -> str | list[dict[str, Any]]:
     """
@@ -80,6 +97,12 @@ def _convert_user_content_to_anthropic(
 
     Handles both simple string content (backward compatible) and
     multimodal content arrays (text + images).
+
+    For images with URL sources, this will fetch the image and convert
+    it to base64 format since Anthropic requires base64-encoded images.
+
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
     """
     if content is None:
         return ""
@@ -95,12 +118,12 @@ def _convert_user_content_to_anthropic(
         if isinstance(item, TextContent):
             anthropic_content.append({"type": "text", "text": item.text})
         elif isinstance(item, ImageContent):
-            anthropic_content.append(_convert_image_to_anthropic(item))
+            anthropic_content.append(await _convert_image_to_anthropic(item))
 
     return anthropic_content
 
 
-def convert_messages_to_anthropic(
+async def convert_messages_to_anthropic(
     messages: list[ChatMessage],
 ) -> tuple[list[dict[str, Any]], str | None]:
     """
@@ -110,6 +133,9 @@ def convert_messages_to_anthropic(
     System messages are extracted and returned separately since Anthropic
     takes system prompts as a separate parameter.
 
+    For images with URL sources, this function will fetch the images and
+    convert them to base64 format since Anthropic requires base64-encoded images.
+
     Args:
         messages: List of ChatMessage objects
 
@@ -118,10 +144,14 @@ def convert_messages_to_anthropic(
             - messages: List of dictionaries in Anthropic message format
             - system_prompt: The system message content (if any), or None
 
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
+
     Examples:
+        >>> import asyncio
         >>> from casual_llm import UserMessage, SystemMessage
         >>> messages = [SystemMessage(content="Be helpful"), UserMessage(content="Hello")]
-        >>> anthropic_msgs, system = convert_messages_to_anthropic(messages)
+        >>> anthropic_msgs, system = asyncio.run(convert_messages_to_anthropic(messages))
         >>> anthropic_msgs[0]["role"]
         'user'
         >>> system
@@ -192,7 +222,7 @@ def convert_messages_to_anthropic(
             case "user":
                 anthropic_messages.append({
                     "role": "user",
-                    "content": _convert_user_content_to_anthropic(msg.content),
+                    "content": await _convert_user_content_to_anthropic(msg.content),
                 })
 
             case _:
