@@ -1,7 +1,7 @@
 """Cross-provider vision compatibility tests.
 
 This test suite verifies that the same ImageContent and multimodal messages
-work consistently across all providers (OpenAI, Anthropic, Google, Ollama).
+work consistently across providers (OpenAI, Ollama).
 """
 
 import pytest
@@ -15,8 +15,6 @@ from casual_llm.messages import (
     ImageContent,
 )
 from casual_llm.message_converters.openai import convert_messages_to_openai
-from casual_llm.message_converters.anthropic import convert_messages_to_anthropic
-from casual_llm.message_converters.google import convert_messages_to_google
 from casual_llm.message_converters.ollama import convert_messages_to_ollama
 
 
@@ -160,96 +158,6 @@ class TestCrossProviderImageFormatConversion:
         assert TEST_IMAGE_BASE64 in content[1]["image_url"]["url"]
 
     @pytest.mark.asyncio
-    async def test_anthropic_format_with_base64(self, base64_image):
-        """Test Anthropic converter produces correct format for base64 images."""
-        messages = [
-            UserMessage(
-                content=[
-                    TextContent(type="text", text="Describe this:"),
-                    base64_image,
-                ]
-            )
-        ]
-
-        result, _ = await convert_messages_to_anthropic(messages)
-
-        content = result[0]["content"]
-        assert isinstance(content, list)
-        assert content[1]["type"] == "image"
-        # Anthropic expects source dict with raw base64 (no data URI prefix)
-        assert content[1]["source"]["type"] == "base64"
-        assert content[1]["source"]["data"] == TEST_IMAGE_BASE64
-        assert content[1]["source"]["media_type"] == "image/png"
-
-    @pytest.mark.asyncio
-    async def test_anthropic_format_with_url(self, url_image):
-        """Test Anthropic converter fetches URL and converts to base64."""
-        messages = [
-            UserMessage(
-                content=[
-                    TextContent(type="text", text="Describe this:"),
-                    url_image,
-                ]
-            )
-        ]
-
-        with patch(
-            "casual_llm.message_converters.anthropic.fetch_image_as_base64",
-            new_callable=AsyncMock,
-            return_value=("fetchedbase64data", "image/jpeg"),
-        ):
-            result, _ = await convert_messages_to_anthropic(messages)
-
-        content = result[0]["content"]
-        assert content[1]["type"] == "image"
-        assert content[1]["source"]["type"] == "base64"
-        assert content[1]["source"]["data"] == "fetchedbase64data"
-
-    @pytest.mark.asyncio
-    async def test_google_format_with_base64(self, base64_image):
-        """Test Google converter produces parts format for base64 images."""
-        messages = [
-            UserMessage(
-                content=[
-                    TextContent(type="text", text="Describe this:"),
-                    base64_image,
-                ]
-            )
-        ]
-
-        result, _ = await convert_messages_to_google(messages)
-
-        parts = result[0]["parts"]
-        assert isinstance(parts, list)
-        assert parts[0]["text"] == "Describe this:"
-        # Google expects inline_data format
-        assert "inline_data" in parts[1]
-        assert parts[1]["inline_data"]["mime_type"] == "image/png"
-        assert parts[1]["inline_data"]["data"] == TEST_IMAGE_BASE64
-
-    @pytest.mark.asyncio
-    async def test_google_format_with_url(self, url_image):
-        """Test Google converter fetches URL and converts to inline_data."""
-        messages = [
-            UserMessage(
-                content=[
-                    TextContent(type="text", text="Describe this:"),
-                    url_image,
-                ]
-            )
-        ]
-
-        with patch(
-            "casual_llm.message_converters.google.fetch_image_as_base64",
-            new_callable=AsyncMock,
-            return_value=("googlefetcheddata", "image/jpeg"),
-        ):
-            result, _ = await convert_messages_to_google(messages)
-
-        parts = result[0]["parts"]
-        assert parts[1]["inline_data"]["data"] == "googlefetcheddata"
-
-    @pytest.mark.asyncio
     async def test_ollama_format_with_base64(self, base64_image):
         """Test Ollama converter produces images array for base64 images."""
         messages = [
@@ -326,31 +234,6 @@ class TestCrossProviderConversationCompatibility:
         assert result[3]["content"] == "What color is it?"  # Plain text
 
     @pytest.mark.asyncio
-    async def test_anthropic_handles_vision_conversation(self, vision_conversation):
-        """Test Anthropic converter handles full vision conversation."""
-        result, system_prompt = await convert_messages_to_anthropic(vision_conversation)
-
-        # Anthropic extracts system message separately
-        assert system_prompt == "You are a helpful assistant that describes images."
-        assert len(result) == 3  # No system message in array
-        assert result[0]["role"] == "user"
-        assert isinstance(result[0]["content"], list)  # Multimodal content
-        assert result[1]["role"] == "assistant"
-        assert result[2]["role"] == "user"
-
-    @pytest.mark.asyncio
-    async def test_google_handles_vision_conversation(self, vision_conversation):
-        """Test Google converter handles full vision conversation."""
-        result, system_instruction = await convert_messages_to_google(vision_conversation)
-
-        # Google extracts system message as system_instruction
-        assert system_instruction == "You are a helpful assistant that describes images."
-        assert len(result) == 3  # No system message in array
-        assert result[0]["role"] == "user"
-        assert result[1]["role"] == "model"  # Google uses "model" instead of "assistant"
-        assert result[2]["role"] == "user"
-
-    @pytest.mark.asyncio
     async def test_ollama_handles_vision_conversation(self, vision_conversation):
         """Test Ollama converter handles full vision conversation."""
         result = await convert_messages_to_ollama(vision_conversation)
@@ -394,30 +277,6 @@ class TestDataURIPrefixHandling:
 
         url = result[0]["content"][0]["image_url"]["url"]
         assert url.startswith("data:image/png;base64,")
-
-    @pytest.mark.asyncio
-    async def test_anthropic_strips_data_uri_prefix(self, data_uri_source):
-        """Anthropic should strip data URI prefix from source."""
-        messages = [UserMessage(content=[data_uri_source])]
-
-        result, _ = await convert_messages_to_anthropic(messages)
-
-        # Anthropic expects raw base64, not data URI
-        data = result[0]["content"][0]["source"]["data"]
-        assert not data.startswith("data:")
-        assert data == TEST_IMAGE_BASE64
-
-    @pytest.mark.asyncio
-    async def test_google_strips_data_uri_prefix(self, data_uri_source):
-        """Google should strip data URI prefix from inline_data."""
-        messages = [UserMessage(content=[data_uri_source])]
-
-        result, _ = await convert_messages_to_google(messages)
-
-        # Google expects raw base64, not data URI
-        data = result[0]["parts"][0]["inline_data"]["data"]
-        assert not data.startswith("data:")
-        assert data == TEST_IMAGE_BASE64
 
     @pytest.mark.asyncio
     async def test_ollama_strips_data_uri_prefix(self, data_uri_source):
@@ -465,28 +324,6 @@ class TestMultipleImagesSupport:
         assert content[2]["type"] == "image_url"
 
     @pytest.mark.asyncio
-    async def test_anthropic_multiple_images(self, multi_image_message):
-        """Test Anthropic handles multiple images in one message."""
-        result, _ = await convert_messages_to_anthropic([multi_image_message])
-
-        content = result[0]["content"]
-        assert len(content) == 3
-        assert content[0]["type"] == "text"
-        assert content[1]["type"] == "image"
-        assert content[2]["type"] == "image"
-
-    @pytest.mark.asyncio
-    async def test_google_multiple_images(self, multi_image_message):
-        """Test Google handles multiple images in one message."""
-        result, _ = await convert_messages_to_google([multi_image_message])
-
-        parts = result[0]["parts"]
-        assert len(parts) == 3
-        assert "text" in parts[0]
-        assert "inline_data" in parts[1]
-        assert "inline_data" in parts[2]
-
-    @pytest.mark.asyncio
     async def test_ollama_multiple_images(self, multi_image_message):
         """Test Ollama handles multiple images in one message."""
         result = await convert_messages_to_ollama([multi_image_message])
@@ -503,20 +340,6 @@ class TestEmptyAndEdgeCases:
     def test_empty_messages_list(self):
         """Test handling of empty messages list."""
         assert convert_messages_to_openai([]) == []
-
-    @pytest.mark.asyncio
-    async def test_anthropic_empty_messages(self):
-        """Test Anthropic handles empty messages."""
-        result, system = await convert_messages_to_anthropic([])
-        assert result == []
-        assert system is None
-
-    @pytest.mark.asyncio
-    async def test_google_empty_messages(self):
-        """Test Google handles empty messages."""
-        result, system = await convert_messages_to_google([])
-        assert result == []
-        assert system is None
 
     @pytest.mark.asyncio
     async def test_ollama_empty_messages(self):
@@ -540,26 +363,6 @@ class TestEmptyAndEdgeCases:
         assert len(content) == 1
         assert content[0]["type"] == "text"
         assert content[0]["text"] == "Just text, no images"
-
-    @pytest.mark.asyncio
-    async def test_none_content_handling_anthropic(self):
-        """Test Anthropic handles None content gracefully."""
-        messages = [UserMessage(content=None)]
-
-        result, _ = await convert_messages_to_anthropic(messages)
-
-        # Anthropic returns empty string for None content
-        assert result[0]["content"] == ""
-
-    @pytest.mark.asyncio
-    async def test_none_content_handling_google(self):
-        """Test Google handles None content gracefully."""
-        messages = [UserMessage(content=None)]
-
-        result, _ = await convert_messages_to_google(messages)
-
-        # Google returns empty parts list for None content
-        assert result[0]["parts"] == []
 
     @pytest.mark.asyncio
     async def test_none_content_handling_ollama(self):
@@ -603,62 +406,6 @@ class TestMediaTypeVariations:
         url = result[0]["content"][0]["image_url"]["url"]
         assert f"data:{media_type};base64," in url
 
-    @pytest.mark.parametrize(
-        "media_type",
-        [
-            "image/jpeg",
-            "image/png",
-            "image/gif",
-            "image/webp",
-        ],
-    )
-    @pytest.mark.asyncio
-    async def test_anthropic_media_types(self, media_type):
-        """Test Anthropic handles various media types."""
-        messages = [
-            UserMessage(
-                content=[
-                    ImageContent(
-                        type="image",
-                        source={"type": "base64", "data": "testdata"},
-                        media_type=media_type,
-                    ),
-                ]
-            )
-        ]
-
-        result, _ = await convert_messages_to_anthropic(messages)
-
-        assert result[0]["content"][0]["source"]["media_type"] == media_type
-
-    @pytest.mark.parametrize(
-        "media_type",
-        [
-            "image/jpeg",
-            "image/png",
-            "image/gif",
-            "image/webp",
-        ],
-    )
-    @pytest.mark.asyncio
-    async def test_google_media_types(self, media_type):
-        """Test Google handles various media types."""
-        messages = [
-            UserMessage(
-                content=[
-                    ImageContent(
-                        type="image",
-                        source={"type": "base64", "data": "testdata"},
-                        media_type=media_type,
-                    ),
-                ]
-            )
-        ]
-
-        result, _ = await convert_messages_to_google(messages)
-
-        assert result[0]["parts"][0]["inline_data"]["mime_type"] == media_type
-
 
 class TestDefaultMediaTypeInference:
     """Tests for default media type behavior."""
@@ -671,28 +418,3 @@ class TestDefaultMediaTypeInference:
         )
 
         assert image.media_type == "image/jpeg"
-
-    @pytest.mark.asyncio
-    async def test_url_fetch_overrides_default(self):
-        """Test that fetched media type is used for URL images."""
-        messages = [
-            UserMessage(
-                content=[
-                    ImageContent(
-                        type="image",
-                        source="https://example.com/image.png",
-                        # Uses default media_type="image/jpeg"
-                    ),
-                ]
-            )
-        ]
-
-        with patch(
-            "casual_llm.message_converters.anthropic.fetch_image_as_base64",
-            new_callable=AsyncMock,
-            return_value=("pngdata", "image/png"),
-        ):
-            result, _ = await convert_messages_to_anthropic(messages)
-
-        # Should use fetched media type, not default
-        assert result[0]["content"][0]["source"]["media_type"] == "image/png"

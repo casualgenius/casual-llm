@@ -17,8 +17,6 @@ from casual_llm import (
     ChatMessage,
 )
 from casual_llm.message_converters.openai import convert_messages_to_openai
-from casual_llm.message_converters.anthropic import convert_messages_to_anthropic
-from casual_llm.message_converters.google import convert_messages_to_google
 from casual_llm.message_converters.ollama import convert_messages_to_ollama
 
 
@@ -227,173 +225,6 @@ class TestOpenAIConverterBackwardCompatibility:
 
 
 # ==============================================================================
-# Anthropic Converter Backward Compatibility Tests
-# ==============================================================================
-
-
-class TestAnthropicConverterBackwardCompatibility:
-    """Test that Anthropic converter still handles text-only messages."""
-
-    @pytest.mark.asyncio
-    async def test_user_message_string_content(self):
-        """Test converting UserMessage with string content."""
-        msg = UserMessage(content="Hello, Claude!")
-        messages, system = await convert_messages_to_anthropic([msg])
-
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == "Hello, Claude!"
-        assert system is None
-
-    @pytest.mark.asyncio
-    async def test_system_message_extraction(self):
-        """Test that system message is extracted correctly."""
-        messages_in = [
-            SystemMessage(content="You are a helpful assistant."),
-            UserMessage(content="Hi!"),
-        ]
-        messages, system = await convert_messages_to_anthropic(messages_in)
-
-        assert len(messages) == 1
-        assert messages[0]["content"] == "Hi!"
-        assert system == "You are a helpful assistant."
-
-    @pytest.mark.asyncio
-    async def test_all_message_types(self):
-        """Test converting all message types."""
-        messages_in = [
-            SystemMessage(content="Be concise."),
-            UserMessage(content="What is Python?"),
-            AssistantMessage(content="Python is a programming language."),
-        ]
-        messages, system = await convert_messages_to_anthropic(messages_in)
-
-        assert len(messages) == 2
-        assert system == "Be concise."
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == "What is Python?"
-        assert messages[1]["role"] == "assistant"
-
-    @pytest.mark.asyncio
-    async def test_multi_turn_conversation(self):
-        """Test converting multi-turn text conversation."""
-        messages_in = [
-            UserMessage(content="Hello"),
-            AssistantMessage(content="Hi there!"),
-            UserMessage(content="How are you?"),
-            AssistantMessage(content="I'm doing well, thanks!"),
-        ]
-        messages, system = await convert_messages_to_anthropic(messages_in)
-
-        assert len(messages) == 4
-        assert messages[0]["content"] == "Hello"
-        assert messages[1]["content"][0]["text"] == "Hi there!"
-        assert messages[2]["content"] == "How are you?"
-        assert messages[3]["content"][0]["text"] == "I'm doing well, thanks!"
-
-    @pytest.mark.asyncio
-    async def test_empty_messages(self):
-        """Test converting empty message list."""
-        messages, system = await convert_messages_to_anthropic([])
-        assert messages == []
-        assert system is None
-
-    @pytest.mark.asyncio
-    async def test_none_user_content(self):
-        """Test converting UserMessage with None content."""
-        msg = UserMessage(content=None)
-        messages, system = await convert_messages_to_anthropic([msg])
-
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == ""  # None converted to empty string
-
-
-# ==============================================================================
-# Google Converter Backward Compatibility Tests
-# ==============================================================================
-
-
-class TestGoogleConverterBackwardCompatibility:
-    """Test that Google converter still handles text-only messages."""
-
-    @pytest.mark.asyncio
-    async def test_user_message_string_content(self):
-        """Test converting UserMessage with string content."""
-        msg = UserMessage(content="Hello, Gemini!")
-        messages, system = await convert_messages_to_google([msg])
-
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert messages[0]["parts"] == [{"text": "Hello, Gemini!"}]
-        assert system is None
-
-    @pytest.mark.asyncio
-    async def test_system_message_extraction(self):
-        """Test that system message is extracted correctly."""
-        messages_in = [
-            SystemMessage(content="You are a creative writer."),
-            UserMessage(content="Write a haiku."),
-        ]
-        messages, system = await convert_messages_to_google(messages_in)
-
-        assert len(messages) == 1
-        assert messages[0]["parts"] == [{"text": "Write a haiku."}]
-        assert system == "You are a creative writer."
-
-    @pytest.mark.asyncio
-    async def test_all_message_types(self):
-        """Test converting all message types."""
-        messages_in = [
-            SystemMessage(content="Be helpful."),
-            UserMessage(content="What is AI?"),
-            AssistantMessage(content="AI stands for Artificial Intelligence."),
-        ]
-        messages, system = await convert_messages_to_google(messages_in)
-
-        assert len(messages) == 2
-        assert system == "Be helpful."
-        assert messages[0]["role"] == "user"
-        assert messages[0]["parts"] == [{"text": "What is AI?"}]
-        assert messages[1]["role"] == "model"
-        assert messages[1]["parts"] == [{"text": "AI stands for Artificial Intelligence."}]
-
-    @pytest.mark.asyncio
-    async def test_multi_turn_conversation(self):
-        """Test converting multi-turn text conversation."""
-        messages_in = [
-            UserMessage(content="Tell me a joke."),
-            AssistantMessage(content="Why did the chicken cross the road?"),
-            UserMessage(content="I don't know, why?"),
-            AssistantMessage(content="To get to the other side!"),
-        ]
-        messages, system = await convert_messages_to_google(messages_in)
-
-        assert len(messages) == 4
-        assert messages[0]["parts"] == [{"text": "Tell me a joke."}]
-        assert messages[1]["parts"] == [{"text": "Why did the chicken cross the road?"}]
-        assert messages[2]["parts"] == [{"text": "I don't know, why?"}]
-        assert messages[3]["parts"] == [{"text": "To get to the other side!"}]
-
-    @pytest.mark.asyncio
-    async def test_empty_messages(self):
-        """Test converting empty message list."""
-        messages, system = await convert_messages_to_google([])
-        assert messages == []
-        assert system is None
-
-    @pytest.mark.asyncio
-    async def test_none_user_content(self):
-        """Test converting UserMessage with None content."""
-        msg = UserMessage(content=None)
-        messages, system = await convert_messages_to_google([msg])
-
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert messages[0]["parts"] == []  # None converted to empty parts
-
-
-# ==============================================================================
 # Ollama Converter Backward Compatibility Tests
 # ==============================================================================
 
@@ -502,14 +333,6 @@ class TestCrossProviderTextConsistency:
         openai_result = convert_messages_to_openai([msg])
         assert openai_result[0]["content"] == "Hello, World!"
 
-        # Anthropic
-        anthropic_msgs, _ = await convert_messages_to_anthropic([msg])
-        assert anthropic_msgs[0]["content"] == "Hello, World!"
-
-        # Google
-        google_msgs, _ = await convert_messages_to_google([msg])
-        assert google_msgs[0]["parts"] == [{"text": "Hello, World!"}]
-
         # Ollama
         ollama_result = await convert_messages_to_ollama([msg])
         assert ollama_result[0]["content"] == "Hello, World!"
@@ -526,16 +349,6 @@ class TestCrossProviderTextConsistency:
         # OpenAI
         openai_result = convert_messages_to_openai(messages)
         assert len(openai_result) == 3
-
-        # Anthropic
-        anthropic_msgs, system = await convert_messages_to_anthropic(messages)
-        assert len(anthropic_msgs) == 2
-        assert system == "You are helpful."
-
-        # Google
-        google_msgs, system = await convert_messages_to_google(messages)
-        assert len(google_msgs) == 2
-        assert system == "You are helpful."
 
         # Ollama
         ollama_result = await convert_messages_to_ollama(messages)
@@ -611,9 +424,6 @@ def hello():
         openai_result = convert_messages_to_openai(messages)
         assert len(openai_result) == 4
         assert openai_result[1]["tool_calls"] is not None
-
-        anthropic_msgs, _ = await convert_messages_to_anthropic(messages)
-        assert len(anthropic_msgs) == 4
 
         ollama_result = await convert_messages_to_ollama(messages)
         assert len(ollama_result) == 4

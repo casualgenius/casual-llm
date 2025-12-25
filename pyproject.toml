@@ -28,8 +28,6 @@ dependencies = [
 
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
-anthropic = ["anthropic>=0.20.0"]
-google = ["google-generativeai>=0.5.0"]
 vision = ["httpx>=0.24.0"]
 
 [project.urls]
@@ -66,12 +64,6 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 
-[[tool.mypy.overrides]]
-module = [
-    "anthropic.*",
-    "google.*",
-]
-ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
