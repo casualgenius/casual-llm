@@ -1,0 +1,25 @@
+{
+  "active": true,
+  "spec": "001-add-streaming-support-for-real-time-responses",
+  "state": "building",
+  "subtasks": {
+    "completed": 2,
+    "total": 10,
+    "in_progress": 1,
+    "failed": 0
+  },
+  "phase": {
+    "current": "Core Models and Protocol",
+    "id": null,
+    "total": 3
+  },
+  "workers": {
+    "active": 0,
+    "max": 1
+  },
+  "session": {
+    "number": 3,
+    "started_at": "2025-12-25T20:49:30.045162"
+  },
+  "last_update": "2025-12-25T20:54:55.453747"
+}

@@ -29,6 +29,7 @@ from casual_llm.messages import (
     ToolResultMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
+    StreamChunk,
 )
 
 # Tool models
@@ -71,6 +72,7 @@ __all__ = [
     "ToolResultMessage",
     "AssistantToolCall",
     "AssistantToolCallFunction",
+    "StreamChunk",
     # Tools
     "Tool",
     "ToolParameter",
