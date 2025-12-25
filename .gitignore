@@ -58,5 +58,8 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
-.auto-claude/.env
 
+.env
+
+# Auto Claude data directory
+.auto-claude/
