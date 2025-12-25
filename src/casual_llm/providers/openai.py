@@ -9,6 +9,7 @@ from typing import Literal, Any
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
+from casual_llm.config import RetryConfig
 from casual_llm.messages import ChatMessage, AssistantMessage
 from casual_llm.tools import Tool
 from casual_llm.usage import Usage
@@ -37,6 +38,7 @@ class OpenAIProvider:
         temperature: float | None = None,
         timeout: float = 60.0,
         extra_kwargs: dict[str, Any] | None = None,
+        retry_config: RetryConfig | None = None,
     ):
         """
         Initialize OpenAI provider.
@@ -49,6 +51,7 @@ class OpenAIProvider:
             temperature: Temperature for generation (0.0-1.0, optional - uses OpenAI default if not set)
             timeout: HTTP request timeout in seconds
             extra_kwargs: Additional kwargs to pass to client.chat.completions.create()
+            retry_config: Configuration for retry behavior with exponential backoff (optional)
         """
         client_kwargs: dict[str, Any] = {"timeout": timeout}
 
@@ -63,6 +66,7 @@ class OpenAIProvider:
         self.model = model
         self.temperature = temperature
         self.extra_kwargs = extra_kwargs or {}
+        self.retry_config = retry_config
 
         # Usage tracking
         self._last_usage: Usage | None = None
