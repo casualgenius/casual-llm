@@ -359,6 +359,27 @@
       ]
     }
   },
-  "qa_signoff": null,
-  "last_updated": "2025-12-25T05:06:47.574445+00:00"
+  "qa_signoff": {"status": "approved", "timestamp": "2025-12-25T05:30:00Z", "qa_session": 2, "verified_by": "qa_agent"},
+  "last_updated": "2025-12-25T05:06:47.574445+00:00",
+  "qa_iteration_history": [
+    {
+      "iteration": 1,
+      "status": "error",
+      "timestamp": "2025-12-25T05:13:31.947764+00:00",
+      "issues": [
+        {
+          "title": "QA error",
+          "description": "QA agent did not update implementation_plan.json"
+        }
+      ]
+    }
+  ],
+  "qa_stats": {
+    "total_iterations": 1,
+    "last_iteration": 1,
+    "last_status": "error",
+    "issues_by_type": {
+      "unknown": 1
+    }
+  }
 }
