@@ -707,6 +707,130 @@ class TestOpenAIProvider:
             call_kwargs = mock_create.call_args.kwargs
             assert "response_format" not in call_kwargs
 
+    @pytest.mark.asyncio
+    async def test_stream_success(self, provider):
+        """Test successful streaming with multiple chunks"""
+
+        async def mock_stream():
+            """Mock async generator that yields stream chunks in OpenAI format"""
+            chunks = [
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="Hello"), finish_reason=None)]
+                ),
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content=" world"), finish_reason=None)]
+                ),
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="!"), finish_reason="stop")]
+                ),
+            ]
+            for chunk in chunks:
+                yield chunk
+
+        mock_create = AsyncMock(return_value=mock_stream())
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Say hello")]
+
+            collected_chunks = []
+            async for chunk in provider.stream(messages):
+                collected_chunks.append(chunk)
+
+            # Verify we got the expected chunks
+            assert len(collected_chunks) == 3
+            assert all(isinstance(c, StreamChunk) for c in collected_chunks)
+            assert collected_chunks[0].content == "Hello"
+            assert collected_chunks[1].content == " world"
+            assert collected_chunks[2].content == "!"
+
+            # Verify finish_reason is set on the last chunk
+            assert collected_chunks[2].finish_reason == "stop"
+            assert collected_chunks[0].finish_reason is None
+            assert collected_chunks[1].finish_reason is None
+
+            # Verify stream=True was passed
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["stream"] is True
+
+    @pytest.mark.asyncio
+    async def test_stream_empty_chunks(self, provider):
+        """Test that empty chunks are handled (not yielded)"""
+
+        async def mock_stream():
+            """Mock async generator with empty chunks interspersed"""
+            chunks = [
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="Hello"), finish_reason=None)]
+                ),
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content=""), finish_reason=None)]
+                ),  # Empty content
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content=None), finish_reason=None)]
+                ),  # None content
+                MagicMock(choices=[]),  # No choices at all
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content=" there"), finish_reason="stop")]
+                ),
+            ]
+            for chunk in chunks:
+                yield chunk
+
+        mock_create = AsyncMock(return_value=mock_stream())
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Test")]
+
+            collected_chunks = []
+            async for chunk in provider.stream(messages):
+                collected_chunks.append(chunk)
+
+            # Only non-empty chunks should be yielded
+            assert len(collected_chunks) == 2
+            assert collected_chunks[0].content == "Hello"
+            assert collected_chunks[1].content == " there"
+
+    @pytest.mark.asyncio
+    async def test_stream_temperature_override(self, provider):
+        """Test that per-call temperature overrides instance temperature during streaming"""
+        # Provider was created with temperature=0.7
+        assert provider.temperature == 0.7
+
+        async def mock_stream():
+            """Empty mock stream for testing parameters"""
+            chunks = [
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="Test"), finish_reason="stop")]
+                ),
+            ]
+            for chunk in chunks:
+                yield chunk
+
+        mock_create = AsyncMock(return_value=mock_stream())
+
+        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Test")]
+
+            # Call with overridden temperature
+            async for _ in provider.stream(messages, temperature=0.2):
+                pass
+
+            # Verify the temperature passed to OpenAI
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.2
+            assert call_kwargs["stream"] is True
+
+            # Reset mock for second call
+            mock_create.reset_mock()
+            mock_create.return_value = mock_stream()
+
+            # Call without override - should use instance temperature
+            async for _ in provider.stream(messages):
+                pass
+
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["temperature"] == 0.7
+
 
 class TestCreateProviderFactory:
     """Tests for create_provider() factory function"""
