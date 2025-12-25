@@ -77,7 +77,7 @@ class LLMProvider(Protocol):
         """
         ...
 
-    async def stream(
+    def stream(
         self,
         messages: list[ChatMessage],
         response_format: Literal["json", "text"] | type[BaseModel] = "text",
