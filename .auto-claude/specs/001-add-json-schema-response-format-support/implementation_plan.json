@@ -359,7 +359,12 @@
       ]
     }
   },
-  "qa_signoff": {"status": "approved", "timestamp": "2025-12-25T05:30:00Z", "qa_session": 2, "verified_by": "qa_agent"},
+  "qa_signoff": {
+    "status": "approved",
+    "timestamp": "2025-12-25T05:30:00Z",
+    "qa_session": 2,
+    "verified_by": "qa_agent"
+  },
   "last_updated": "2025-12-25T05:06:47.574445+00:00",
   "qa_iteration_history": [
     {
@@ -381,5 +386,8 @@
     "issues_by_type": {
       "unknown": 1
     }
-  }
+  },
+  "status": "done",
+  "planStatus": "completed",
+  "updated_at": "2025-12-25T05:44:13.385Z"
 }
