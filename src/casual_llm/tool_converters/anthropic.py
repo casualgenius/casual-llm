@@ -37,8 +37,7 @@ def tool_to_anthropic(tool: Tool) -> "ToolParam":
         "input_schema": {
             "type": "object",
             "properties": {
-                name: param.model_dump(exclude_none=True)
-                for name, param in tool.parameters.items()
+                name: param.model_dump(exclude_none=True) for name, param in tool.parameters.items()
             },
             "required": tool.required,
         },

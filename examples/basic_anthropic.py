@@ -60,7 +60,7 @@ async def basic_text_response():
     # Show usage statistics
     usage = provider.get_usage()
     if usage:
-        print(f"\nUsage:")
+        print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")

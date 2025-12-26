@@ -69,8 +69,7 @@ class AnthropicProvider:
         self._last_usage: Usage | None = None
 
         logger.info(
-            f"AnthropicProvider initialized: model={model}, "
-            f"base_url={base_url or 'default'}"
+            f"AnthropicProvider initialized: model={model}, " f"base_url={base_url or 'default'}"
         )
 
     def get_usage(self) -> Usage | None:

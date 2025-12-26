@@ -273,9 +273,7 @@ def convert_tool_calls_from_anthropic(
         tool_call = AssistantToolCall(
             id=tool.id,
             type="function",
-            function=AssistantToolCallFunction(
-                name=tool.name, arguments=arguments
-            ),
+            function=AssistantToolCallFunction(name=tool.name, arguments=arguments),
         )
         tool_calls.append(tool_call)
 
