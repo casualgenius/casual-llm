@@ -11,12 +11,63 @@ from casual_llm.messages import (
     ChatMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
+    TextContent,
+    ImageContent,
 )
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_image_to_openai(image: ImageContent) -> dict[str, Any]:
+    """
+    Convert ImageContent to OpenAI image_url format.
+
+    OpenAI expects images in the format:
+    {"type": "image_url", "image_url": {"url": "..."}}
+
+    For base64 images, the URL should be a data URI:
+    data:image/jpeg;base64,...
+    """
+    if isinstance(image.source, str):
+        # URL source - use directly
+        image_url = image.source
+    else:
+        # Base64 dict source - construct data URI
+        base64_data = image.source.get("data", "")
+        image_url = f"data:{image.media_type};base64,{base64_data}"
+
+    return {
+        "type": "image_url",
+        "image_url": {"url": image_url},
+    }
+
+
+def _convert_user_content_to_openai(
+    content: str | list[TextContent | ImageContent] | None,
+) -> str | list[dict[str, Any]] | None:
+    """
+    Convert UserMessage content to OpenAI format.
+
+    Handles both simple string content (backward compatible) and
+    multimodal content arrays (text + images).
+    """
+    if content is None or isinstance(content, str):
+        # Simple string content or None - pass through
+        return content
+
+    # Multimodal content array
+    openai_content: list[dict[str, Any]] = []
+
+    for item in content:
+        if isinstance(item, TextContent):
+            openai_content.append({"type": "text", "text": item.text})
+        elif isinstance(item, ImageContent):
+            openai_content.append(_convert_image_to_openai(item))
+
+    return openai_content
 
 
 def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, Any]]:
@@ -86,7 +137,12 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
                 )
 
             case "user":
-                openai_messages.append({"role": "user", "content": msg.content})
+                openai_messages.append(
+                    {
+                        "role": "user",
+                        "content": _convert_user_content_to_openai(msg.content),
+                    }
+                )
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")

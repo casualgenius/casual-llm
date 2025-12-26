@@ -10,6 +10,37 @@ from typing import Literal, TypeAlias
 from pydantic import BaseModel
 
 
+class TextContent(BaseModel):
+    """Text content block for multimodal messages."""
+
+    type: Literal["text"] = "text"
+    text: str
+
+
+class ImageContent(BaseModel):
+    """Image content block for multimodal messages.
+
+    Supports both URL strings and base64-encoded image data.
+
+    Examples:
+        # URL source
+        ImageContent(type="image", source="https://example.com/image.jpg")
+
+        # Base64 source (dict format)
+        ImageContent(
+            type="image",
+            source={"type": "base64", "data": "...base64..."},
+            media_type="image/png"
+        )
+    """
+
+    type: Literal["image"] = "image"
+    source: str | dict[str, str]
+    """URL string or dict with {type: "base64", data: "..."} format."""
+    media_type: str = "image/jpeg"
+    """MIME type of the image (e.g., image/jpeg, image/png, image/gif, image/webp)."""
+
+
 class AssistantToolCallFunction(BaseModel):
     """Function call within an assistant tool call."""
 
@@ -50,10 +81,23 @@ class ToolResultMessage(BaseModel):
 
 
 class UserMessage(BaseModel):
-    """Message from the user."""
+    """Message from the user.
+
+    Supports both simple text content and multimodal content (text + images).
+
+    Examples:
+        # Simple text content
+        UserMessage(content="Hello, world!")
+
+        # Multimodal content
+        UserMessage(content=[
+            TextContent(type="text", text="What's in this image?"),
+            ImageContent(type="image", source="https://example.com/image.jpg")
+        ])
+    """
 
     role: Literal["user"] = "user"
-    content: str | None
+    content: str | list[TextContent | ImageContent] | None
 
 
 class StreamChunk(BaseModel):

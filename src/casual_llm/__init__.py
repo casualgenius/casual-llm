@@ -30,6 +30,9 @@ from casual_llm.messages import (
     AssistantToolCall,
     AssistantToolCallFunction,
     StreamChunk,
+    # Multimodal content types
+    TextContent,
+    ImageContent,
 )
 
 # Tool models
@@ -73,6 +76,9 @@ __all__ = [
     "AssistantToolCall",
     "AssistantToolCallFunction",
     "StreamChunk",
+    # Multimodal content types
+    "TextContent",
+    "ImageContent",
     # Tools
     "Tool",
     "ToolParameter",
