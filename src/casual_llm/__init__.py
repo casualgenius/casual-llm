@@ -63,6 +63,16 @@ from casual_llm.message_converters import (
     extract_system_message,
 )
 
+# Embedding providers and models
+from casual_llm.embeddings import (
+    EmbeddingProvider,
+    EmbeddingData,
+    EmbeddingResponse,
+    OllamaEmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    create_embedding_provider,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -106,4 +116,11 @@ __all__ = [
     "convert_tool_calls_from_ollama",
     "convert_tool_calls_from_anthropic",
     "extract_system_message",
+    # Embeddings
+    "EmbeddingProvider",
+    "EmbeddingData",
+    "EmbeddingResponse",
+    "OllamaEmbeddingProvider",
+    "OpenAIEmbeddingProvider",
+    "create_embedding_provider",
 ]
