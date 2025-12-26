@@ -29,7 +29,9 @@ OLLAMA_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
 # Sample image URL for testing (a simple test image)
-SAMPLE_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/1200px-Cat03.jpg"
+SAMPLE_IMAGE_URL = (
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/1200px-Cat03.jpg"
+)
 
 
 async def openai_vision_example():

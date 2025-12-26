@@ -18,13 +18,14 @@ from casual_llm import (
     ToolResultMessage,
     SystemMessage,
     OllamaProvider,
-    OpenAIProvider
+    OpenAIProvider,
 )
 
 OLLAMA_HOST = "http://kovacs.jinkies.net:11434"
 OLLAMA_MODEL = "llama3.1"
 provider = OllamaProvider(model=OLLAMA_MODEL, host=OLLAMA_HOST)
-#provider = OpenAIProvider(model='gpt-4.1-nano')
+# provider = OpenAIProvider(model='gpt-4.1-nano')
+
 
 # Define example tools
 def get_current_weather(location: str, units: str = "celsius") -> dict:
