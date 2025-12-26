@@ -555,9 +555,7 @@ class TestEmbeddingResponseEdgeCases:
 
         # Create mock response with 100 embeddings
         mock_response = MagicMock()
-        mock_response.data = [
-            MagicMock(embedding=[0.1, 0.2, 0.3], index=i) for i in range(100)
-        ]
+        mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3], index=i) for i in range(100)]
         mock_response.model = "text-embedding-3-small"
         mock_response.usage = MagicMock(prompt_tokens=500, total_tokens=500)
 
@@ -594,9 +592,7 @@ class TestEmbeddingResponseEdgeCases:
         with patch.object(
             provider.client,
             "embed",
-            new=AsyncMock(
-                return_value={"embeddings": [[0.1]], "prompt_eval_count": 10}
-            ),
+            new=AsyncMock(return_value={"embeddings": [[0.1]], "prompt_eval_count": 10}),
         ):
             import asyncio
 
@@ -609,9 +605,7 @@ class TestEmbeddingResponseEdgeCases:
         with patch.object(
             provider.client,
             "embed",
-            new=AsyncMock(
-                return_value={"embeddings": [[0.1]], "prompt_eval_count": 20}
-            ),
+            new=AsyncMock(return_value={"embeddings": [[0.1]], "prompt_eval_count": 20}),
         ):
             asyncio.get_event_loop().run_until_complete(provider.embed(["Another test"]))
             usage2 = provider.get_usage()
