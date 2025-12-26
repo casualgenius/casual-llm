@@ -12,12 +12,98 @@ from casual_llm.messages import (
     ChatMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
+    TextContent,
+    ImageContent,
 )
 
 if TYPE_CHECKING:
     from anthropic.types import ToolUseBlock
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_image_to_anthropic(image: ImageContent) -> dict[str, Any]:
+    """
+    Convert ImageContent to Anthropic image block format.
+
+    Anthropic supports both URL and base64 images directly.
+
+    Args:
+        image: ImageContent with either URL or base64 source
+
+    Returns:
+        Dictionary in Anthropic image block format
+
+    Examples:
+        >>> from casual_llm import ImageContent
+        >>> img = ImageContent(source="https://example.com/image.jpg")
+        >>> block = _convert_image_to_anthropic(img)
+        >>> block["type"]
+        'image'
+    """
+    if isinstance(image.source, str):
+        # URL image - Anthropic supports URLs directly
+        return {
+            "type": "image",
+            "source": {
+                "type": "url",
+                "url": image.source,
+            },
+        }
+    else:
+        # Base64 image
+        base64_data = image.source.get("data", "")
+        media_type = image.media_type or "image/jpeg"
+
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_data,
+            },
+        }
+
+
+def _convert_user_content_to_anthropic(
+    content: str | list[TextContent | ImageContent] | None,
+) -> list[dict[str, Any]]:
+    """
+    Convert UserMessage content to Anthropic format.
+
+    Handles both simple string content (backward compatible) and
+    multimodal content arrays (text + images).
+
+    Anthropic always uses content blocks (array format), even for simple text.
+
+    Args:
+        content: Message content (string, multimodal array, or None)
+
+    Returns:
+        List of content blocks in Anthropic format
+
+    Examples:
+        >>> content_blocks = _convert_user_content_to_anthropic("Hello")
+        >>> content_blocks[0]["type"]
+        'text'
+    """
+    if content is None:
+        return [{"type": "text", "text": ""}]
+
+    if isinstance(content, str):
+        # Simple string content
+        return [{"type": "text", "text": content}]
+
+    # Multimodal content array
+    content_blocks: list[dict[str, Any]] = []
+
+    for item in content:
+        if isinstance(item, TextContent):
+            content_blocks.append({"type": "text", "text": item.text})
+        elif isinstance(item, ImageContent):
+            content_blocks.append(_convert_image_to_anthropic(item))
+
+    return content_blocks
 
 
 def extract_system_message(messages: list[ChatMessage]) -> str | None:
@@ -140,11 +226,12 @@ def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str,
                 )
 
             case "user":
-                # User messages with simple text content
+                # User messages with text and/or image content
+                content_blocks = _convert_user_content_to_anthropic(msg.content)
                 anthropic_messages.append(
                     {
                         "role": "user",
-                        "content": [{"type": "text", "text": msg.content or ""}],
+                        "content": content_blocks,
                     }
                 )
 
@@ -200,4 +287,6 @@ __all__ = [
     "convert_messages_to_anthropic",
     "extract_system_message",
     "convert_tool_calls_from_anthropic",
+    "_convert_image_to_anthropic",
+    "_convert_user_content_to_anthropic",
 ]
