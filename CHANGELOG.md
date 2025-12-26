@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2024-12-26
+
+### Added
+- **Vision/Multimodal Support**: Full support for vision-capable models with image content
+  - `ImageContent` and `TextContent` models for multimodal messages
+  - Support for both URL-based and base64-encoded images
+  - Automatic image fetching and encoding for Ollama provider
+  - Works with OpenAI (gpt-4o, gpt-4.1-nano) and Ollama (llava) vision models
+  - Example: `examples/vision_example.py` demonstrating vision capabilities with both providers
+- **Streaming Support**: Stream responses from LLMs in real-time
+  - `stream()` method on all providers returning `AsyncIterator[StreamChunk]`
+  - `StreamChunk` model for streaming response chunks
+  - Support for streaming with both OpenAI and Ollama providers
+  - Example: `examples/stream_example.py` demonstrating streaming with multi-turn conversations
+- **Image Utilities**: Helper functions for image processing
+  - `fetch_image_as_base64()` - Download and encode images from URLs
+  - `strip_base64_prefix()` - Remove data URI prefixes from base64 strings
+  - `add_base64_prefix()` - Add data URI prefixes to base64 strings
+
+### Changed
+- **Core dependency added**: `httpx[http2]>=0.28.1` now required for reliable image fetching
+- **Test coverage**: Added 23 comprehensive tests for image utilities (95% coverage)
+- **Total test count**: Now 182 tests (up from 159)
+
+### Fixed
+- Image fetching from Wikipedia and similar sites (HTTP/2 and User-Agent headers)
+- Error messages now properly indicate `httpx[http2]` installation requirement
+
 ## [0.2.0] - 2025-01-XX
 
 ### Added
@@ -91,5 +119,6 @@ Initial release of casual-llm - a lightweight, protocol-based LLM provider abstr
 - `ollama>=0.6.1` - Official Ollama Python library
 - `openai>=1.0.0` - Optional, for OpenAI provider
 
+[0.3.0]: https://github.com/casualgenius/casual-llm/releases/tag/v0.3.0
 [0.2.0]: https://github.com/casualgenius/casual-llm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/casualgenius/casual-llm/releases/tag/v0.1.0
