@@ -24,11 +24,11 @@ classifiers = [
 dependencies = [
     "pydantic>=2.0.0",
     "ollama>=0.6.1",
+    "httpx[http2]>=0.28.1",
 ]
 
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
-vision = ["httpx>=0.24.0"]
 
 [project.urls]
 Homepage = "https://github.com/casualgenius/casual-llm"

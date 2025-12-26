@@ -61,11 +61,16 @@ async def fetch_image_as_base64(
     """
     if not HTTPX_AVAILABLE:
         raise ImageFetchError(
-            "httpx is required for fetching images from URLs. " "Install it with: pip install httpx"
+            "httpx is required for fetching images from URLs. "
+            "Install it with: pip install 'httpx[http2]'"
         )
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        # Use a browser-like User-Agent and HTTP/2 to avoid being blocked by sites like Wikipedia
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        async with httpx.AsyncClient(timeout=timeout, headers=headers, http2=True) as client:
             response = await client.get(url)
             response.raise_for_status()
 

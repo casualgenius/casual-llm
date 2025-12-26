@@ -24,7 +24,7 @@ from casual_llm import (
 
 # Configuration from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
-OPENAI_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
+OPENAI_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-nano")
 OLLAMA_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
@@ -115,14 +115,14 @@ async def ollama_vision_example():
         print(f"  ollama pull {OLLAMA_MODEL}")
 
 
-async def base64_image_example():
-    """Example: Send a base64-encoded image."""
+async def openai_base64_image_example():
+    """Example: Send a base64-encoded image with OpenAI."""
     if not OPENAI_API_KEY:
-        print("\nSkipping base64 example (OPENAI_API_KEY not set)")
+        print("\nSkipping OpenAI base64 example (OPENAI_API_KEY not set)")
         return
 
     print("\n" + "=" * 50)
-    print("Base64 Image Example")
+    print("OpenAI Base64 Image Example")
     print("=" * 50)
 
     config = ModelConfig(
@@ -134,29 +134,87 @@ async def base64_image_example():
 
     provider = create_provider(config)
 
-    # A tiny 1x1 red PNG image in base64
-    # This is a minimal valid PNG for demonstration
-    tiny_red_png_base64 = (
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx"
-        "0gAAAABJRU5ErkJggg=="
-    )
+    # Load and encode the happy-dog.jpg image
+    import base64
+    from pathlib import Path
+
+    image_path = Path(__file__).parent / "data" / "happy-dog.jpg"
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("ascii")
 
     # Create message with base64 image
     messages = [
         UserMessage(
             content=[
-                TextContent(text="What color is this image?"),
+                TextContent(text="What do you see in this image? Describe the dog."),
                 ImageContent(
-                    source={"type": "base64", "data": tiny_red_png_base64},
-                    media_type="image/png",
+                    source={"type": "base64", "data": image_data},
+                    media_type="image/jpeg",
                 ),
             ]
         )
     ]
 
-    print("Sending base64-encoded image...")
+    print("Sending base64-encoded image (happy-dog.jpg)...")
     response = await provider.chat(messages, response_format="text")
     print(f"\nResponse:\n{response.content}")
+
+    # Show usage
+    usage = provider.get_usage()
+    if usage:
+        print(f"\nUsage: {usage.total_tokens} tokens")
+
+
+async def ollama_base64_image_example():
+    """Example: Send a base64-encoded image with Ollama."""
+    print("\n" + "=" * 50)
+    print("Ollama Base64 Image Example")
+    print("=" * 50)
+
+    config = ModelConfig(
+        name=OLLAMA_MODEL,
+        provider=Provider.OLLAMA,
+        base_url=OLLAMA_ENDPOINT,
+        temperature=0.7,
+    )
+
+    provider = create_provider(config)
+
+    # Load and encode the happy-dog.jpg image
+    import base64
+    from pathlib import Path
+
+    image_path = Path(__file__).parent / "data" / "happy-dog.jpg"
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("ascii")
+
+    # Create message with base64 image
+    messages = [
+        UserMessage(
+            content=[
+                TextContent(text="What do you see in this image? Describe the dog."),
+                ImageContent(
+                    source={"type": "base64", "data": image_data},
+                    media_type="image/jpeg",
+                ),
+            ]
+        )
+    ]
+
+    print("Sending base64-encoded image (happy-dog.jpg)...")
+
+    try:
+        response = await provider.chat(messages, response_format="text")
+        print(f"\nResponse:\n{response.content}")
+
+        # Show usage
+        usage = provider.get_usage()
+        if usage:
+            print(f"\nUsage: {usage.total_tokens} tokens")
+    except Exception as e:
+        print(f"\nError: {e}")
+        print(f"Make sure Ollama is running and '{OLLAMA_MODEL}' is pulled:")
+        print(f"  ollama pull {OLLAMA_MODEL}")
 
 
 async def main():
@@ -170,8 +228,11 @@ async def main():
     # Run Ollama example
     await ollama_vision_example()
 
-    # Run base64 example
-    await base64_image_example()
+    # Run OpenAI base64 example
+    await openai_base64_image_example()
+
+    # Run Ollama base64 example
+    await ollama_base64_image_example()
 
     print("\n" + "=" * 50)
     print("Vision examples complete!")
