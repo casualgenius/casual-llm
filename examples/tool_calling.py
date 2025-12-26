@@ -22,6 +22,8 @@ from casual_llm import (
 
 OLLAMA_HOST = "http://kovacs.jinkies.net:11434"
 OLLAMA_MODEL = "llama3.1"
+provider = OllamaProvider(model=OLLAMA_MODEL, host=OLLAMA_HOST)
+# provider = OpenAIProvider(model='gpt-4.1-nano')
 
 
 # Define example tools
@@ -115,10 +117,6 @@ async def run_tool_calling_example():
 
     # Initialize provider (using Ollama - replace with OpenAIProvider as needed)
     print("Initializing Ollama provider...")
-    provider = OllamaProvider(
-        model=OLLAMA_MODEL,
-        host=OLLAMA_HOST,
-    )
     print()
 
     # Define tools available to the LLM
@@ -209,8 +207,6 @@ async def run_simple_no_tools_example():
     print("  Simple Example (No Tools)")
     print("=" * 70)
     print()
-
-    provider = OllamaProvider(model=OLLAMA_MODEL, host=OLLAMA_HOST)
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),

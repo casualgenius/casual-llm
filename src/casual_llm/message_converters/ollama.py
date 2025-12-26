@@ -13,6 +13,12 @@ from casual_llm.messages import (
     ChatMessage,
     AssistantToolCall,
     AssistantToolCallFunction,
+    TextContent,
+    ImageContent,
+)
+from casual_llm.utils.image import (
+    strip_base64_prefix,
+    fetch_image_as_base64,
 )
 
 if TYPE_CHECKING:
@@ -21,12 +27,86 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+async def _convert_image_to_ollama(image: ImageContent) -> str:
+    """
+    Convert ImageContent to Ollama base64 format.
+
+    Ollama expects images as raw base64 strings (no data URI prefix).
+
+    For URL sources, this function fetches the image and converts to base64.
+
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
+    """
+    if isinstance(image.source, str):
+        # Check if it's a data URI or a URL
+        if image.source.startswith("data:"):
+            # Data URI - extract base64 data
+            return strip_base64_prefix(image.source)
+        else:
+            # Regular URL - fetch and convert to base64
+            logger.debug(f"Fetching image from URL for Ollama: {image.source}")
+            base64_data, _ = await fetch_image_as_base64(image.source)
+            return base64_data
+    else:
+        # Base64 dict source - use directly
+        base64_data = image.source.get("data", "")
+        # Strip any data URI prefix that might be present
+        return strip_base64_prefix(base64_data)
+
+
+async def _convert_user_content_to_ollama(
+    content: str | list[TextContent | ImageContent] | None,
+) -> tuple[str, list[str]]:
+    """
+    Convert UserMessage content to Ollama format.
+
+    Handles both simple string content (backward compatible) and
+    multimodal content arrays (text + images).
+
+    Ollama uses a format where text goes in "content" and images
+    go in a separate "images" array as raw base64 strings.
+
+    Returns:
+        A tuple of (text_content, images_list) where:
+            - text_content: Combined text from all TextContent items
+            - images_list: List of base64-encoded image strings
+
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
+    """
+    if content is None:
+        return "", []
+
+    if isinstance(content, str):
+        # Simple string content
+        return content, []
+
+    # Multimodal content array
+    text_parts: list[str] = []
+    images: list[str] = []
+
+    for item in content:
+        if isinstance(item, TextContent):
+            text_parts.append(item.text)
+        elif isinstance(item, ImageContent):
+            images.append(await _convert_image_to_ollama(item))
+
+    # Join text parts with newlines
+    text_content = "\n".join(text_parts) if text_parts else ""
+
+    return text_content, images
+
+
+async def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     """
     Convert casual-llm ChatMessage list to Ollama format.
 
     Unlike OpenAI which expects tool call arguments as JSON strings,
     Ollama expects them as dictionaries. This function handles that conversion.
+
+    Supports multimodal messages with images. Ollama expects images as raw
+    base64 strings in a separate "images" array.
 
     Args:
         messages: List of ChatMessage objects
@@ -34,10 +114,14 @@ def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, An
     Returns:
         List of dictionaries in Ollama message format
 
+    Raises:
+        ImageFetchError: If a URL image cannot be fetched.
+
     Examples:
+        >>> import asyncio
         >>> from casual_llm import UserMessage
         >>> messages = [UserMessage(content="Hello")]
-        >>> ollama_msgs = convert_messages_to_ollama(messages)
+        >>> ollama_msgs = asyncio.run(convert_messages_to_ollama(messages))
         >>> ollama_msgs[0]["role"]
         'user'
     """
@@ -97,7 +181,11 @@ def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[str, An
                 )
 
             case "user":
-                ollama_messages.append({"role": "user", "content": msg.content})
+                text_content, images = await _convert_user_content_to_ollama(msg.content)
+                user_message: dict[str, Any] = {"role": "user", "content": text_content}
+                if images:
+                    user_message["images"] = images
+                ollama_messages.append(user_message)
 
             case _:
                 logger.warning(f"Unknown message role: {msg.role}")

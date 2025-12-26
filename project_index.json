@@ -1,0 +1,35 @@
+{
+  "project_type": "single",
+  "services": {
+    "main": {
+      "path": ".",
+      "tech_stack": ["python", "pydantic"],
+      "port": null,
+      "dev_command": null,
+      "test_command": "pytest tests/",
+      "type_check_command": "mypy src/casual_llm",
+      "lint_command": "ruff check src/ tests/",
+      "format_command": "black src/ tests/"
+    }
+  },
+  "infrastructure": {
+    "docker": false,
+    "database": null,
+    "ci_cd": "github-actions"
+  },
+  "conventions": {
+    "linter": "ruff",
+    "formatter": "black",
+    "testing": "pytest",
+    "type_checker": "mypy",
+    "models": "pydantic",
+    "async_pattern": "async/await with AsyncClient",
+    "optional_dependencies": "extras in pyproject.toml"
+  },
+  "key_patterns": {
+    "message_models": "Pydantic BaseModel with Literal role field",
+    "providers": "Class with async chat() and stream() methods",
+    "converters": "Separate converter modules per provider",
+    "type_hints": "Full typing with TYPE_CHECKING guards for imports"
+  }
+}
