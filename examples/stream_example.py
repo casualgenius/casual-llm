@@ -129,7 +129,7 @@ async def ollama_stream_conversation_example():
         UserMessage(content="What is a Python decorator?"),
     ]
 
-    print(f"User: What is a Python decorator?")
+    print("User: What is a Python decorator?")
     print(f"\n{OLLAMA_MODEL}: ", end="", flush=True)
 
     try:
@@ -147,7 +147,7 @@ async def ollama_stream_conversation_example():
         messages.append(AssistantMessage(content=response_text))
         messages.append(UserMessage(content="Can you show me a simple example?"))
 
-        print(f"User: Can you show me a simple example?")
+        print("User: Can you show me a simple example?")
         print(f"\n{OLLAMA_MODEL}: ", end="", flush=True)
 
         async for chunk in provider.stream(messages, response_format="text"):

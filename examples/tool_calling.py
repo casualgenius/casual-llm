@@ -18,7 +18,6 @@ from casual_llm import (
     ToolResultMessage,
     SystemMessage,
     OllamaProvider,
-    OpenAIProvider,
 )
 
 OLLAMA_HOST = "http://kovacs.jinkies.net:11434"
