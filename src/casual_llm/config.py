@@ -14,6 +14,7 @@ class Provider(Enum):
 
     OPENAI = "openai"
     OLLAMA = "ollama"
+    ANTHROPIC = "anthropic"
 
 
 @dataclass

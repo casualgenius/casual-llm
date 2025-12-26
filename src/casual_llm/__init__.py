@@ -17,6 +17,7 @@ from casual_llm.providers import (
     LLMProvider,
     OllamaProvider,
     OpenAIProvider,
+    AnthropicProvider,
     create_provider,
 )
 
@@ -47,14 +48,29 @@ from casual_llm.tool_converters import (
     tools_to_ollama,
     tool_to_openai,
     tools_to_openai,
+    tool_to_anthropic,
+    tools_to_anthropic,
 )
 
 # Message converters
 from casual_llm.message_converters import (
     convert_messages_to_openai,
     convert_messages_to_ollama,
+    convert_messages_to_anthropic,
     convert_tool_calls_from_openai,
     convert_tool_calls_from_ollama,
+    convert_tool_calls_from_anthropic,
+    extract_system_message,
+)
+
+# Embedding providers and models
+from casual_llm.embeddings import (
+    EmbeddingProvider,
+    EmbeddingData,
+    EmbeddingResponse,
+    OllamaEmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    create_embedding_provider,
 )
 
 __all__ = [
@@ -66,6 +82,7 @@ __all__ = [
     "Provider",
     "OllamaProvider",
     "OpenAIProvider",
+    "AnthropicProvider",
     "create_provider",
     # Messages
     "ChatMessage",
@@ -84,13 +101,26 @@ __all__ = [
     "ToolParameter",
     # Usage
     "Usage",
+    # Tool converters
     "tool_to_ollama",
     "tools_to_ollama",
     "tool_to_openai",
     "tools_to_openai",
+    "tool_to_anthropic",
+    "tools_to_anthropic",
     # Message converters
     "convert_messages_to_openai",
     "convert_messages_to_ollama",
+    "convert_messages_to_anthropic",
     "convert_tool_calls_from_openai",
     "convert_tool_calls_from_ollama",
+    "convert_tool_calls_from_anthropic",
+    "extract_system_message",
+    # Embeddings
+    "EmbeddingProvider",
+    "EmbeddingData",
+    "EmbeddingResponse",
+    "OllamaEmbeddingProvider",
+    "OpenAIEmbeddingProvider",
+    "create_embedding_provider",
 ]
