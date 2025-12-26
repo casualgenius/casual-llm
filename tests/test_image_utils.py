@@ -17,7 +17,6 @@ from casual_llm.utils.image import (
     strip_base64_prefix,
     add_base64_prefix,
     ImageFetchError,
-    DEFAULT_TIMEOUT,
     MAX_IMAGE_SIZE,
 )
 
@@ -100,9 +99,7 @@ class TestFetchImageAsBase64:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            base64_data, media_type = await fetch_image_as_base64(
-                "https://example.com/image.jpg"
-            )
+            base64_data, media_type = await fetch_image_as_base64("https://example.com/image.jpg")
 
             # Verify result
             expected_b64 = base64.b64encode(test_image_data).decode("ascii")
@@ -128,9 +125,7 @@ class TestFetchImageAsBase64:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            base64_data, media_type = await fetch_image_as_base64(
-                "https://example.com/image.png"
-            )
+            base64_data, media_type = await fetch_image_as_base64("https://example.com/image.png")
 
             assert media_type == "image/png"
 
@@ -150,9 +145,7 @@ class TestFetchImageAsBase64:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            base64_data, media_type = await fetch_image_as_base64(
-                "https://example.com/image.jpg"
-            )
+            base64_data, media_type = await fetch_image_as_base64("https://example.com/image.jpg")
 
             assert media_type == "image/jpeg"  # Fallback
 
@@ -172,9 +165,7 @@ class TestFetchImageAsBase64:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            base64_data, media_type = await fetch_image_as_base64(
-                "https://example.com/image.jpg"
-            )
+            base64_data, media_type = await fetch_image_as_base64("https://example.com/image.jpg")
 
             assert media_type == "image/jpeg"  # Default
 
@@ -185,9 +176,7 @@ class TestFetchImageAsBase64:
         mock_response.status_code = 404
 
         async def mock_get(*args, **kwargs):
-            raise httpx.HTTPStatusError(
-                "404 Not Found", request=Mock(), response=mock_response
-            )
+            raise httpx.HTTPStatusError("404 Not Found", request=Mock(), response=mock_response)
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = Mock()
@@ -205,6 +194,7 @@ class TestFetchImageAsBase64:
     @pytest.mark.asyncio
     async def test_fetch_timeout(self):
         """Test fetch with timeout."""
+
         async def mock_get(*args, **kwargs):
             raise httpx.TimeoutException("Request timed out")
 
@@ -223,6 +213,7 @@ class TestFetchImageAsBase64:
     @pytest.mark.asyncio
     async def test_fetch_request_error(self):
         """Test fetch with general request error."""
+
         async def mock_get(*args, **kwargs):
             raise httpx.RequestError("Connection failed")
 
@@ -332,9 +323,7 @@ class TestFetchImageAsBase64:
             mock_client_class.return_value = mock_client
 
             # Should succeed with large max_size
-            await fetch_image_as_base64(
-                "https://example.com/image.jpg", max_size=2000
-            )
+            await fetch_image_as_base64("https://example.com/image.jpg", max_size=2000)
 
         # Test 2: Should fail with small max_size
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
@@ -345,9 +334,7 @@ class TestFetchImageAsBase64:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(ImageFetchError):
-                await fetch_image_as_base64(
-                    "https://example.com/image.jpg", max_size=500
-                )
+                await fetch_image_as_base64("https://example.com/image.jpg", max_size=500)
 
     @pytest.mark.asyncio
     async def test_fetch_uses_http2(self):
