@@ -13,6 +13,11 @@ try:
 except ImportError:
     OpenAIProvider = None  # type: ignore
 
+try:
+    from casual_llm.providers.anthropic import AnthropicProvider
+except ImportError:
+    AnthropicProvider = None  # type: ignore
+
 
 def create_provider(
     model_config: ModelConfig,
@@ -26,11 +31,11 @@ def create_provider(
         timeout: HTTP timeout in seconds (default: 60.0)
 
     Returns:
-        Configured LLM provider (OllamaProvider or OpenAIProvider)
+        Configured LLM provider (OllamaProvider, OpenAIProvider, or AnthropicProvider)
 
     Raises:
         ValueError: If provider type is not supported
-        ImportError: If openai package is not installed for OpenAI provider
+        ImportError: If required package is not installed for the provider
 
     Examples:
         >>> from casual_llm import ModelConfig, Provider, create_provider
@@ -72,6 +77,21 @@ def create_provider(
             timeout=timeout,
         )
 
+    elif model_config.provider == Provider.ANTHROPIC:
+        if AnthropicProvider is None:
+            raise ImportError(
+                "Anthropic provider requires the 'anthropic' package. "
+                "Install it with: pip install casual-llm[anthropic]"
+            )
+
+        return AnthropicProvider(
+            model=model_config.name,
+            api_key=model_config.api_key,
+            base_url=model_config.base_url,
+            temperature=model_config.temperature,
+            timeout=timeout,
+        )
+
     else:
         raise ValueError(f"Unsupported provider: {model_config.provider}")
 
@@ -82,5 +102,6 @@ __all__ = [
     "Provider",
     "OllamaProvider",
     "OpenAIProvider",
+    "AnthropicProvider",
     "create_provider",
 ]
