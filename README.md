@@ -11,13 +11,15 @@ Part of the [casual-*](https://github.com/AlexStansfield/casual-mcp) ecosystem o
 ## Features
 
 - 🎯 **Protocol-based** - Uses `typing.Protocol`, no inheritance required
-- 🔌 **Provider-agnostic** - Works with OpenAI, Ollama, or your custom provider
-- 📦 **Lightweight** - Minimal dependencies (pydantic, ollama)
+- 🔌 **Multi-provider** - Works with OpenAI, Anthropic (Claude), Ollama, or your custom provider
+- 📦 **Lightweight** - Minimal dependencies (pydantic, ollama, httpx)
 - 🔄 **Async-first** - Built for modern async Python
 - 🛡️ **Type-safe** - Full type hints with py.typed marker
 - 📊 **OpenAI-compatible** - Standard message format used across the industry
 - 🔧 **Tool calling** - First-class support for function/tool calling
 - 📈 **Usage tracking** - Track token usage for cost monitoring
+- 🖼️ **Vision support** - Send images to vision-capable models
+- ⚡ **Streaming** - Stream responses in real-time with `AsyncIterator`
 
 ## Installation
 
@@ -28,11 +30,18 @@ uv add casual-llm
 # With OpenAI support
 uv add casual-llm[openai]
 
+# With Anthropic (Claude) support
+uv add casual-llm[anthropic]
+
+# With all providers
+uv add casual-llm[openai,anthropic]
+
 # Development dependencies
 uv add casual-llm[dev]
 
 # Or using pip
 pip install casual-llm
+pip install casual-llm[openai,anthropic]
 ```
 
 ## Quick Start
@@ -90,6 +99,32 @@ if usage:
     print(f"Total tokens: {usage.total_tokens}")
 ```
 
+### Using Anthropic (Claude)
+
+```python
+from casual_llm import create_provider, ModelConfig, Provider, UserMessage
+
+# Create Anthropic provider
+config = ModelConfig(
+    name="claude-3-5-sonnet-20241022",
+    provider=Provider.ANTHROPIC,
+    api_key="sk-ant-...",  # or set ANTHROPIC_API_KEY env var
+    temperature=0.7
+)
+
+provider = create_provider(config)
+
+# Generate response
+messages = [UserMessage(content="Explain quantum computing in one sentence.")]
+response = await provider.chat(messages, response_format="text")
+print(response.content)
+
+# Check token usage
+usage = provider.get_usage()
+if usage:
+    print(f"Total tokens: {usage.total_tokens}")
+```
+
 ### Using OpenAI-Compatible APIs (OpenRouter, LM Studio, etc.)
 
 ```python
@@ -104,6 +139,107 @@ config = ModelConfig(
 provider = create_provider(config)
 ```
 
+### Vision Support
+
+Send images to vision-capable models (GPT-4o, Claude 3.5 Sonnet, llava):
+
+```python
+from casual_llm import (
+    create_provider,
+    ModelConfig,
+    Provider,
+    UserMessage,
+    TextContent,
+    ImageContent,
+)
+
+# Works with OpenAI, Anthropic, and Ollama
+config = ModelConfig(
+    name="gpt-4o",  # or "claude-3-5-sonnet-20241022" or "llava"
+    provider=Provider.OPENAI,
+    api_key="sk-...",
+)
+
+provider = create_provider(config)
+
+# Send an image URL
+messages = [
+    UserMessage(
+        content=[
+            TextContent(text="What's in this image?"),
+            ImageContent(source="https://example.com/image.jpg"),
+        ]
+    )
+]
+
+response = await provider.chat(messages)
+print(response.content)  # "I see a cat sitting on a windowsill..."
+
+# Or send a base64-encoded image
+import base64
+
+with open("image.jpg", "rb") as f:
+    image_data = base64.b64encode(f.read()).decode("ascii")
+
+messages = [
+    UserMessage(
+        content=[
+            TextContent(text="Describe this image"),
+            ImageContent(
+                source={"type": "base64", "data": image_data},
+                media_type="image/jpeg",
+            ),
+        ]
+    )
+]
+
+response = await provider.chat(messages)
+```
+
+### Streaming Responses
+
+Stream responses in real-time for better UX:
+
+```python
+from casual_llm import create_provider, ModelConfig, Provider, UserMessage
+
+config = ModelConfig(
+    name="gpt-4o",  # Works with all providers
+    provider=Provider.OPENAI,
+    api_key="sk-...",
+)
+
+provider = create_provider(config)
+
+messages = [UserMessage(content="Write a short poem about coding.")]
+
+# Stream the response
+async for chunk in provider.stream(messages):
+    if chunk.content:
+        print(chunk.content, end="", flush=True)
+
+print()  # New line after streaming
+
+# Check usage after streaming
+usage = provider.get_usage()
+if usage:
+    print(f"\nTokens used: {usage.total_tokens}")
+```
+
+## Examples
+
+Looking for more examples? Check out the [`examples/`](examples) directory for comprehensive demonstrations of all features:
+
+- **[`basic_ollama.py`](examples/basic_ollama.py)** - Get started with Ollama (local LLMs)
+- **[`basic_openai.py`](examples/basic_openai.py)** - Use OpenAI API and compatible services
+- **[`basic_anthropic.py`](examples/basic_anthropic.py)** - Work with Claude models
+- **[`vision_example.py`](examples/vision_example.py)** - Send images to vision-capable models
+- **[`stream_example.py`](examples/stream_example.py)** - Stream responses in real-time
+- **[`tool_calling.py`](examples/tool_calling.py)** - Complete tool/function calling workflow
+- **[`message_formatting.py`](examples/message_formatting.py)** - All message types and structures
+
+See the **[Examples README](examples/README.md)** for detailed descriptions, requirements, and usage instructions for each example.
+
 ## Message Models
 
 casual-llm provides OpenAI-compatible message models that work with any provider:
@@ -116,13 +252,23 @@ from casual_llm import (
     ToolResultMessage,
     AssistantToolCall,
     ChatMessage,  # Type alias for any message type
+    TextContent,  # For multimodal messages
+    ImageContent,  # For vision support
 )
 
 # System message (sets behavior)
 system_msg = SystemMessage(content="You are a helpful assistant.")
 
-# User message
+# User message (simple text)
 user_msg = UserMessage(content="Hello!")
+
+# User message (multimodal - text + image)
+vision_msg = UserMessage(
+    content=[
+        TextContent(text="What's in this image?"),
+        ImageContent(source="https://example.com/image.jpg"),
+    ]
+)
 
 # Assistant message (with optional tool calls)
 assistant_msg = AssistantMessage(
@@ -154,7 +300,15 @@ messages: list[ChatMessage] = [system_msg, user_msg, assistant_msg, tool_msg]
 Implement the `LLMProvider` protocol to add your own provider:
 
 ```python
-from casual_llm import LLMProvider, ChatMessage, AssistantMessage, Tool, Usage
+from typing import Literal, AsyncIterator
+from casual_llm import (
+    LLMProvider,
+    ChatMessage,
+    AssistantMessage,
+    StreamChunk,
+    Tool,
+    Usage,
+)
 
 class MyCustomProvider:
     """Custom LLM provider implementation."""
@@ -162,12 +316,25 @@ class MyCustomProvider:
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] = "text",
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
+        temperature: float | None = None,
     ) -> AssistantMessage:
         # Your implementation here
         ...
+
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        # Your streaming implementation here
+        ...
+        yield StreamChunk(content="chunk", finish_reason=None)
 
     def get_usage(self) -> Usage | None:
         """Return token usage from last call."""
@@ -214,10 +381,13 @@ Both OpenAI and Ollama providers support usage tracking.
 
 | Feature | casual-llm | LangChain | litellm |
 |---------|-----------|-----------|---------|
-| **Dependencies** | 2 (pydantic, ollama) | 100+ | 50+ |
+| **Dependencies** | 3 (pydantic, ollama, httpx) | 100+ | 50+ |
 | **Protocol-based** | ✅ | ❌ | ❌ |
 | **Type-safe** | ✅ Full typing | Partial | Partial |
 | **Message models** | ✅ Included | ❌ Separate | ❌ |
+| **Vision support** | ✅ All providers | ✅ | ✅ |
+| **Streaming** | ✅ All providers | ✅ | ✅ |
+| **Providers** | OpenAI, Anthropic, Ollama | Many | Many |
 | **Learning curve** | ⚡ Minutes | 📚 Hours | 📖 Medium |
 | **OpenAI compatible** | ✅ | ✅ | ✅ |
 
@@ -250,10 +420,20 @@ class LLMProvider(Protocol):
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] = "text",
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
+        temperature: float | None = None,
     ) -> AssistantMessage: ...
+
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        response_format: Literal["json", "text"] | type[BaseModel] = "text",
+        max_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamChunk]: ...
 
     def get_usage(self) -> Usage | None: ...
 ```
@@ -289,11 +469,13 @@ class Usage(BaseModel):
 
 All message models are Pydantic `BaseModel` instances with full validation:
 
-- `UserMessage(content: str | None)`
+- `UserMessage(content: str | list[TextContent | ImageContent] | None)` - Supports simple text or multimodal content
 - `AssistantMessage(content: str | None, tool_calls: list[AssistantToolCall] | None = None)`
 - `SystemMessage(content: str)`
 - `ToolResultMessage(name: str, tool_call_id: str, content: str)`
 - `ChatMessage` - Type alias for any message type
+- `TextContent(text: str)` - Text block for multimodal messages
+- `ImageContent(source: str | dict, media_type: str | None = None)` - Image block for vision support
 
 ## Contributing
 
