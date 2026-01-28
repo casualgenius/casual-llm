@@ -7,7 +7,7 @@ A simple, protocol-based library for working with different LLM providers
 Part of the casual-* ecosystem of lightweight AI tools.
 """
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 # Model configuration
 from casual_llm.config import ModelConfig, Provider

@@ -1,6 +1,6 @@
 [project]
 name = "casual-llm"
-version = "0.4.1"
+version = "0.4.2"
 description = "Lightweight LLM provider abstraction with standardized message models"
 readme = "README.md"
 requires-python = ">=3.10"
