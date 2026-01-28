@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2024-01-28
+
+### Added
+- README.md to examples folder to explain how to use them
+
+### Changed
+- Updated main README.md to document vision support, anthropic provider and streaming support
+
+## [0.4.1] - 2024-12-30
+
+### Fixed
+- Bumped version (forgot to for 0.4.0) for pypi release
+
+## [0.4.0] - 2024-12-29
+
+### Added
+- Provider for Anthropic
+
 ## [0.3.0] - 2024-12-26
 
 ### Added
