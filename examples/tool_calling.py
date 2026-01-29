@@ -20,10 +20,9 @@ from casual_llm import (
     OllamaProvider,
 )
 
-OLLAMA_HOST = "http://kovacs.jinkies.net:11434"
-OLLAMA_MODEL = "llama3.1"
+OLLAMA_HOST = "http://localhost:11434"
+OLLAMA_MODEL = "llama3.1:8b"
 provider = OllamaProvider(model=OLLAMA_MODEL, host=OLLAMA_HOST)
-# provider = OpenAIProvider(model='gpt-4.1-nano')
 
 
 # Define example tools
