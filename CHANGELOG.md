@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2024-01-28
+
+### Fixed
+- Support for tool parameters that use `anyOf` / `oneOf` for type
+
 ## [0.4.2] - 2024-01-28
 
 ### Added

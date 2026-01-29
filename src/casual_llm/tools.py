@@ -7,6 +7,7 @@ Provides unified tool models compatible with Ollama, OpenAI, and MCP.
 from __future__ import annotations
 
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -14,10 +15,13 @@ class ToolParameter(BaseModel):
     """
     A single tool parameter definition following JSON Schema.
 
-    Supports common JSON Schema fields for describing function parameters.
+    Supports common JSON Schema fields for describing function parameters,
+    including union types via anyOf/oneOf schemas.
     """
 
-    type: str = Field(..., description="JSON Schema type (string, number, object, array, etc.)")
+    type: str | None = Field(
+        None, description="JSON Schema type (string, number, object, array, etc.)"
+    )
     description: str | None = Field(None, description="Parameter description")
     enum: list[Any] | None = Field(None, description="Allowed values for enum types")
     items: dict[str, Any] | None = Field(None, description="Array item schema")
@@ -26,6 +30,8 @@ class ToolParameter(BaseModel):
     )
     required: list[str] | None = Field(None, description="Required properties for nested objects")
     default: Any | None = Field(None, description="Default value")
+    anyOf: list[dict[str, Any]] | None = Field(None, description="Union type schemas")
+    oneOf: list[dict[str, Any]] | None = Field(None, description="Exclusive union type schemas")
 
     model_config = {"extra": "allow"}  # Allow additional JSON Schema fields
 

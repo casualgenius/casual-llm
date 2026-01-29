@@ -71,6 +71,35 @@ class TestToolParameter:
         assert dumped["maxLength"] == 100
         assert dumped["pattern"] == "^[a-z]+$"
 
+    def test_anyof_parameter(self):
+        """Test parameter with anyOf union type."""
+        param = ToolParameter(
+            anyOf=[{"type": "string"}, {"type": "null"}],
+            description="Optional string",
+        )
+        assert param.type is None
+        assert param.anyOf is not None
+
+    def test_oneof_parameter(self):
+        """Test parameter with oneOf exclusive union type."""
+        param = ToolParameter(
+            oneOf=[{"type": "string"}, {"type": "number"}],
+            description="String or number",
+        )
+        assert param.type is None
+        assert param.oneOf is not None
+
+    def test_anyof_serialization(self):
+        """Test that anyOf is properly serialized."""
+        param = ToolParameter(
+            anyOf=[{"type": "string"}, {"type": "null"}],
+            description="Optional",
+        )
+        dumped = param.model_dump(exclude_none=True)
+        assert "anyOf" in dumped
+        assert len(dumped["anyOf"]) == 2
+        assert "type" not in dumped  # type is None, excluded
+
 
 class TestTool:
     """Tests for Tool model."""
@@ -187,6 +216,41 @@ class TestTool:
         assert reconstructed.description == original_tool.description
         assert reconstructed.required == original_tool.required
         assert len(reconstructed.parameters) == len(original_tool.parameters)
+
+    def test_input_schema_with_anyof(self):
+        """Test that input_schema preserves anyOf without injecting type."""
+        tool = Tool(
+            name="test",
+            description="Test",
+            parameters={
+                "optional_field": ToolParameter(
+                    anyOf=[{"type": "string"}, {"type": "null"}],
+                    description="An optional string",
+                )
+            },
+        )
+        schema = tool.input_schema
+        # anyOf should be preserved as-is
+        assert "anyOf" in schema["properties"]["optional_field"]
+        # type should NOT be injected (anyOf is valid JSON Schema)
+        assert "type" not in schema["properties"]["optional_field"]
+
+    def test_input_schema_with_oneof(self):
+        """Test that input_schema preserves oneOf without injecting type."""
+        tool = Tool(
+            name="test",
+            description="Test",
+            parameters={
+                "mixed_field": ToolParameter(
+                    oneOf=[{"type": "number"}, {"type": "string"}],
+                )
+            },
+        )
+        schema = tool.input_schema
+        # oneOf should be preserved as-is
+        assert "oneOf" in schema["properties"]["mixed_field"]
+        # type should NOT be injected
+        assert "type" not in schema["properties"]["mixed_field"]
 
 
 class TestOllamaConverters:
