@@ -157,4 +157,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **PyPI**: https://pypi.org/project/casual-llm/
 - **Issues**: https://github.com/casualgenius/casual-llm/issues
 - **Migration Guide**: [MIGRATION-0.5.0.md](MIGRATION-0.5.0.md)
-- **casual-mcp**: https://github.com/AlexStansfield/casual-mcp
+- **casual-mcp**: https://github.com/casualgenius/casual-mcp
