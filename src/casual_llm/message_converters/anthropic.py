@@ -286,6 +286,4 @@ __all__ = [
     "convert_messages_to_anthropic",
     "extract_system_message",
     "convert_tool_calls_from_anthropic",
-    "_convert_image_to_anthropic",
-    "_convert_user_content_to_anthropic",
 ]
