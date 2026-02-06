@@ -162,7 +162,7 @@ def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str,
     if not messages:
         return []
 
-    logger.debug(f"Converting {len(messages)} messages to Anthropic format")
+    logger.debug("Converting %d messages to Anthropic format", len(messages))
 
     anthropic_messages: list[dict[str, Any]] = []
 
@@ -185,7 +185,8 @@ def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str,
                         except json.JSONDecodeError:
                             input_data = {}
                             logger.warning(
-                                f"Failed to parse tool call arguments: {tool_call.function.arguments}"
+                                "Failed to parse tool call arguments: %s",
+                                tool_call.function.arguments,
                             )
 
                         content_blocks.append(
@@ -236,7 +237,7 @@ def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str,
                 )
 
             case _:
-                logger.warning(f"Unknown message role: {msg.role}")
+                logger.warning("Unknown message role: %s", msg.role)
 
     return anthropic_messages
 
@@ -265,7 +266,7 @@ def convert_tool_calls_from_anthropic(
     tool_calls = []
 
     for tool in response_tool_calls:
-        logger.debug(f"Converting tool call: {tool.name}")
+        logger.debug("Converting tool call: %s", tool.name)
 
         # Serialize input dict to JSON string for casual-llm format
         arguments = json.dumps(tool.input) if tool.input else "{}"
@@ -277,7 +278,7 @@ def convert_tool_calls_from_anthropic(
         )
         tool_calls.append(tool_call)
 
-    logger.debug(f"Converted {len(tool_calls)} tool calls")
+    logger.debug("Converted %d tool calls", len(tool_calls))
     return tool_calls
 
 
@@ -285,6 +286,4 @@ __all__ = [
     "convert_messages_to_anthropic",
     "extract_system_message",
     "convert_tool_calls_from_anthropic",
-    "_convert_image_to_anthropic",
-    "_convert_user_content_to_anthropic",
 ]

@@ -45,7 +45,7 @@ async def _convert_image_to_ollama(image: ImageContent) -> str:
             return strip_base64_prefix(image.source)
         else:
             # Regular URL - fetch and convert to base64
-            logger.debug(f"Fetching image from URL for Ollama: {image.source}")
+            logger.debug("Fetching image from URL for Ollama: %s", image.source)
             base64_data, _ = await fetch_image_as_base64(image.source)
             return base64_data
     else:
@@ -128,7 +128,7 @@ async def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[s
     if not messages:
         return []
 
-    logger.debug(f"Converting {len(messages)} messages to Ollama format")
+    logger.debug("Converting %d messages to Ollama format", len(messages))
 
     ollama_messages: list[dict[str, Any]] = []
 
@@ -188,7 +188,7 @@ async def convert_messages_to_ollama(messages: list[ChatMessage]) -> list[dict[s
                 ollama_messages.append(user_message)
 
             case _:
-                logger.warning(f"Unknown message role: {msg.role}")
+                logger.warning("Unknown message role: %s", msg.role)
 
     return ollama_messages
 
@@ -221,9 +221,9 @@ def convert_tool_calls_from_ollama(
         tool_call_id = getattr(tool, "id", None)
         if not tool_call_id:
             tool_call_id = f"call_{uuid.uuid4().hex[:8]}"
-            logger.debug(f"Generated tool call ID: {tool_call_id}")
+            logger.debug("Generated tool call ID: %s", tool_call_id)
 
-        logger.debug(f"Converting tool call: {tool.function.name}")
+        logger.debug("Converting tool call: %s", tool.function.name)
 
         # Convert arguments from Mapping[str, Any] to JSON string
         # Ollama returns arguments as a dict, but we need a JSON string
@@ -237,7 +237,7 @@ def convert_tool_calls_from_ollama(
         )
         tool_calls.append(tool_call)
 
-    logger.debug(f"Converted {len(tool_calls)} tool calls")
+    logger.debug("Converted %d tool calls", len(tool_calls))
     return tool_calls
 
 

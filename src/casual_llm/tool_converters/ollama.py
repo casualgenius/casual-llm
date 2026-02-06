@@ -66,7 +66,7 @@ def tools_to_ollama(tools: list[Tool]) -> list[dict[str, Any]]:
         >>> len(ollama_tools)
         1
     """
-    logger.debug(f"Converting {len(tools)} tools to Ollama format")
+    logger.debug("Converting %d tools to Ollama format", len(tools))
     return [tool_to_ollama(tool) for tool in tools]
 
 

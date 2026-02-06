@@ -1,15 +1,15 @@
 """
-Basic example using OpenAI provider.
+Basic example using OpenAI client.
 
 Requirements:
 - OpenAI API key set in OPENAI_API_KEY environment variable
-- OR pass api_key to ModelConfig
+- OR pass api_key to OpenAIClient
 - pip install casual-llm[openai]
 """
 
 import asyncio
 import os
-from casual_llm import create_provider, ModelConfig, Provider, UserMessage, SystemMessage
+from casual_llm import OpenAIClient, Model, UserMessage, SystemMessage
 
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
@@ -18,17 +18,14 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
 
 
 async def main():
-    # Create OpenAI provider configuration
-    config = ModelConfig(
-        name=OPENAI_MODEL,
-        provider=Provider.OPENAI,
+    # Create OpenAI client (manages API connection)
+    client = OpenAIClient(
         api_key=OPENAI_API_KEY,
-        temperature=0.7,
         base_url=OPENAI_ENDPOINT,
     )
 
-    # Create provider
-    provider = create_provider(config)
+    # Create model (configure model name and parameters)
+    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
 
     # Create conversation with system message
     messages = [
@@ -38,11 +35,11 @@ async def main():
 
     # Generate response
     print("Generating response...")
-    response = await provider.chat(messages, response_format="text")
+    response = await model.chat(messages, response_format="text")
     print(f"Response:\n{response.content}")
 
     # Check usage statistics
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
@@ -55,16 +52,24 @@ async def main():
         UserMessage(content="List 3 programming languages as JSON with their year of creation.")
     ]
 
-    json_response = await provider.chat(json_messages, response_format="json")
+    json_response = await model.chat(json_messages, response_format="json")
     print(f"JSON Response: {json_response.content}")
 
     # Check usage statistics for JSON response
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")
+
+    # Example: Multiple models using the same client
+    print("\n--- Multi-Model Example ---")
+    # You can create multiple models using the same client connection
+    # gpt4 = Model(client, name="gpt-4", temperature=0.7)
+    # gpt35 = Model(client, name="gpt-3.5-turbo", temperature=0.5)
+    print("You can create multiple Model instances from a single OpenAIClient!")
+    print("Example: Model(client, name='gpt-4', temperature=0.7)")
 
 
 if __name__ == "__main__":

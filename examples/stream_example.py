@@ -1,5 +1,5 @@
 """
-Stream example using OpenAI and Ollama providers.
+Stream example using OpenAI and Ollama clients.
 
 This example demonstrates how to use streaming responses from LLMs
 using casual-llm's stream support.
@@ -12,9 +12,9 @@ Requirements:
 import asyncio
 import os
 from casual_llm import (
-    create_provider,
-    ModelConfig,
-    Provider,
+    OpenAIClient,
+    OllamaClient,
+    Model,
     UserMessage,
     SystemMessage,
 )
@@ -37,14 +37,9 @@ async def openai_stream_example():
     print("OpenAI Stream Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OPENAI_MODEL,
-        provider=Provider.OPENAI,
-        api_key=OPENAI_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OpenAIClient(api_key=OPENAI_API_KEY)
+    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -55,14 +50,14 @@ async def openai_stream_example():
     print("\nResponse:")
 
     # Stream the response
-    async for chunk in provider.stream(messages, response_format="text"):
+    async for chunk in model.stream(messages, response_format="text"):
         if chunk.content:
             print(chunk.content, end="", flush=True)
 
     print("\n")
 
     # Show usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"Usage: {usage.total_tokens} tokens")
 
@@ -73,14 +68,9 @@ async def ollama_stream_example():
     print("Ollama Stream Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OLLAMA_MODEL,
-        provider=Provider.OLLAMA,
-        base_url=OLLAMA_ENDPOINT,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OllamaClient(host=OLLAMA_ENDPOINT)
+    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -92,14 +82,14 @@ async def ollama_stream_example():
 
     try:
         # Stream the response
-        async for chunk in provider.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, response_format="text"):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
 
         print("\n")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"Usage: {usage.total_tokens} tokens")
     except Exception as e:
@@ -114,14 +104,9 @@ async def ollama_stream_conversation_example():
     print("Ollama Stream Conversation Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OLLAMA_MODEL,
-        provider=Provider.OLLAMA,
-        base_url=OLLAMA_ENDPOINT,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OllamaClient(host=OLLAMA_ENDPOINT)
+    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
 
     # First turn
     messages = [
@@ -134,7 +119,7 @@ async def ollama_stream_conversation_example():
 
     try:
         response_text = ""
-        async for chunk in provider.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, response_format="text"):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
                 response_text += chunk.content
@@ -150,14 +135,14 @@ async def ollama_stream_conversation_example():
         print("User: Can you show me a simple example?")
         print(f"\n{OLLAMA_MODEL}: ", end="", flush=True)
 
-        async for chunk in provider.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, response_format="text"):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
 
         print("\n")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"Total usage: {usage.total_tokens} tokens")
     except Exception as e:

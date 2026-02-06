@@ -1,5 +1,5 @@
 """
-Anthropic LLM provider for Claude models.
+Anthropic LLM client for Claude models.
 """
 
 from __future__ import annotations
@@ -25,31 +25,40 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_TOKENS = 4096
 
 
-class AnthropicProvider:
+class AnthropicClient:
     """
-    Anthropic LLM provider for Claude models.
+    Anthropic LLM client for Claude models.
 
     Supports Claude 3 (opus, sonnet, haiku), Claude 3.5, and Claude 4 models.
+    Manages the API connection - use with Model class for actual interactions.
+
+    Examples:
+        >>> from casual_llm import AnthropicClient, Model, UserMessage
+        >>>
+        >>> # Create client (configured once)
+        >>> client = AnthropicClient(api_key="...")
+        >>>
+        >>> # Create models using the client
+        >>> claude_sonnet = Model(client, name="claude-3-5-sonnet-latest", temperature=0.7)
+        >>> claude_haiku = Model(client, name="claude-3-haiku-20240307")
+        >>>
+        >>> # Use models
+        >>> response = await claude_sonnet.chat([UserMessage(content="Hello")])
     """
 
     def __init__(
         self,
-        model: str,
         api_key: str | None = None,
         base_url: str | None = None,
-        temperature: float | None = None,
         timeout: float = 60.0,
         extra_kwargs: dict[str, Any] | None = None,
     ):
         """
-        Initialize Anthropic provider.
+        Initialize Anthropic client.
 
         Args:
-            model: Model name (e.g., "claude-3-haiku-20240307", "claude-3-5-sonnet-latest")
             api_key: API key (optional, can use ANTHROPIC_API_KEY env var)
             base_url: Base URL for API (optional, for custom endpoints)
-            temperature: Temperature for generation (0.0-1.0, optional - uses Anthropic
-                default if not set)
             timeout: HTTP request timeout in seconds
             extra_kwargs: Additional kwargs to pass to client.messages.create()
         """
@@ -61,79 +70,49 @@ class AnthropicProvider:
             client_kwargs["base_url"] = base_url
 
         self.client = AsyncAnthropic(**client_kwargs)
-        self.model = model
-        self.temperature = temperature
         self.extra_kwargs = extra_kwargs or {}
 
-        # Usage tracking
-        self._last_usage: Usage | None = None
+        logger.info("AnthropicClient initialized: base_url=%s", base_url or "default")
 
-        logger.info(
-            f"AnthropicProvider initialized: model={model}, " f"base_url={base_url or 'default'}"
-        )
-
-    def get_usage(self) -> Usage | None:
-        """
-        Get token usage statistics from the last chat() call.
-
-        Returns:
-            Usage object with token counts, or None if no calls have been made
-        """
-        return self._last_usage
-
-    async def chat(
+    async def _chat(
         self,
+        model: str,
         messages: list[ChatMessage],
         response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
         tools: list[Tool] | None = None,
         temperature: float | None = None,
-    ) -> AssistantMessage:
+    ) -> tuple[AssistantMessage, Usage | None]:
         """
         Generate a chat response using Anthropic API.
 
+        This is an internal method typically called by the Model class.
+
         Args:
+            model: Model name (e.g., "claude-3-haiku-20240307", "claude-3-5-sonnet-latest")
             messages: Conversation messages (ChatMessage format)
             response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output. When a Pydantic
-                model is provided, the LLM will be instructed to return JSON matching the
-                schema.
+                BaseModel class for JSON Schema-based structured output.
             max_tokens: Maximum tokens to generate (default: 4096)
             tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional, overrides instance temperature)
+            temperature: Temperature for this request (optional)
 
         Returns:
-            AssistantMessage with content and optional tool_calls
+            Tuple of (AssistantMessage, Usage or None)
 
         Raises:
             anthropic.APIError: If request fails
-
-        Examples:
-            >>> from pydantic import BaseModel
-            >>>
-            >>> class PersonInfo(BaseModel):
-            ...     name: str
-            ...     age: int
-            >>>
-            >>> # Pass Pydantic model for structured output
-            >>> response = await provider.chat(
-            ...     messages=[UserMessage(content="Tell me about a person")],
-            ...     response_format=PersonInfo  # Pass the class, not an instance
-            ... )
         """
         # Extract system message (Anthropic uses separate system parameter)
         system_content = extract_system_message(messages)
 
         # Convert messages to Anthropic format (excludes system messages)
         anthropic_messages = convert_messages_to_anthropic(messages)
-        logger.debug(f"Converted {len(messages)} messages to Anthropic format")
-
-        # Use provided temperature or fall back to instance temperature
-        temp = temperature if temperature is not None else self.temperature
+        logger.debug("Converted %d messages to Anthropic format", len(messages))
 
         # Build request kwargs - max_tokens is required by Anthropic
         request_kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": model,
             "messages": anthropic_messages,
             "max_tokens": max_tokens or DEFAULT_MAX_TOKENS,
         }
@@ -143,8 +122,8 @@ class AnthropicProvider:
             request_kwargs["system"] = system_content
 
         # Only add temperature if specified
-        if temp is not None:
-            request_kwargs["temperature"] = temp
+        if temperature is not None:
+            request_kwargs["temperature"] = temperature
 
         # Handle response_format: "json", "text", or Pydantic model class
         # Anthropic doesn't have native JSON mode like OpenAI, but we can use
@@ -169,29 +148,31 @@ class AnthropicProvider:
                 request_kwargs["system"] = f"{system_content}\n\n{schema_instruction}"
             else:
                 request_kwargs["system"] = schema_instruction
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_anthropic(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to request")
+            logger.debug("Added %d tools to request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Generating with model {self.model}")
+        logger.debug("Generating with model %s", model)
         response = await self.client.messages.create(**request_kwargs)
 
         # Extract usage statistics (Anthropic uses input_tokens/output_tokens)
+        usage: Usage | None = None
         if response.usage:
-            self._last_usage = Usage(
+            usage = Usage(
                 prompt_tokens=response.usage.input_tokens,
                 completion_tokens=response.usage.output_tokens,
             )
             logger.debug(
-                f"Usage: {response.usage.input_tokens} input tokens, "
-                f"{response.usage.output_tokens} output tokens"
+                "Usage: %d input tokens, %d output tokens",
+                response.usage.input_tokens,
+                response.usage.output_tokens,
             )
 
         # Parse response content blocks
@@ -207,14 +188,15 @@ class AnthropicProvider:
         # Convert tool calls if present
         tool_calls = None
         if tool_use_blocks:
-            logger.debug(f"Assistant requested {len(tool_use_blocks)} tool calls")
+            logger.debug("Assistant requested %d tool calls", len(tool_use_blocks))
             tool_calls = convert_tool_calls_from_anthropic(tool_use_blocks)
 
-        logger.debug(f"Generated {len(text_content)} characters")
-        return AssistantMessage(content=text_content, tool_calls=tool_calls)
+        logger.debug("Generated %d characters", len(text_content))
+        return AssistantMessage(content=text_content, tool_calls=tool_calls), usage
 
-    async def stream(
+    async def _stream(
         self,
+        model: str,
         messages: list[ChatMessage],
         response_format: Literal["json", "text"] | type[BaseModel] = "text",
         max_tokens: int | None = None,
@@ -224,43 +206,33 @@ class AnthropicProvider:
         """
         Stream a chat response from Anthropic API.
 
-        This method yields response chunks in real-time as they are generated,
-        enabling progressive display in chat interfaces.
+        This is an internal method typically called by the Model class.
 
         Args:
+            model: Model name (e.g., "claude-3-haiku-20240307", "claude-3-5-sonnet-latest")
             messages: Conversation messages (ChatMessage format)
             response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output. When a Pydantic
-                model is provided, the LLM will be instructed to return JSON matching the
-                schema.
+                BaseModel class for JSON Schema-based structured output.
             max_tokens: Maximum tokens to generate (default: 4096)
-            tools: List of tools available for the LLM to call (optional, may not work
-                with all streaming scenarios)
-            temperature: Temperature for this request (optional, overrides instance temperature)
+            tools: List of tools available for the LLM to call (optional)
+            temperature: Temperature for this request (optional)
 
         Yields:
             StreamChunk objects containing content fragments as tokens are generated.
 
         Raises:
             anthropic.APIError: If request fails
-
-        Examples:
-            >>> async for chunk in provider.stream([UserMessage(content="Hello")]):
-            ...     print(chunk.content, end="", flush=True)
         """
         # Extract system message (Anthropic uses separate system parameter)
         system_content = extract_system_message(messages)
 
         # Convert messages to Anthropic format (excludes system messages)
         anthropic_messages = convert_messages_to_anthropic(messages)
-        logger.debug(f"Converted {len(messages)} messages to Anthropic format for streaming")
-
-        # Use provided temperature or fall back to instance temperature
-        temp = temperature if temperature is not None else self.temperature
+        logger.debug("Converted %d messages to Anthropic format for streaming", len(messages))
 
         # Build request kwargs - max_tokens is required by Anthropic
         request_kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": model,
             "messages": anthropic_messages,
             "max_tokens": max_tokens or DEFAULT_MAX_TOKENS,
         }
@@ -270,8 +242,8 @@ class AnthropicProvider:
             request_kwargs["system"] = system_content
 
         # Only add temperature if specified
-        if temp is not None:
-            request_kwargs["temperature"] = temp
+        if temperature is not None:
+            request_kwargs["temperature"] = temperature
 
         # Handle response_format: "json", "text", or Pydantic model class
         if response_format == "json":
@@ -292,18 +264,18 @@ class AnthropicProvider:
                 request_kwargs["system"] = f"{system_content}\n\n{schema_instruction}"
             else:
                 request_kwargs["system"] = schema_instruction
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_anthropic(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to streaming request")
+            logger.debug("Added %d tools to streaming request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Starting stream with model {self.model}")
+        logger.debug("Starting stream with model %s", model)
 
         async with self.client.messages.stream(**request_kwargs) as stream:
             async for event in stream:

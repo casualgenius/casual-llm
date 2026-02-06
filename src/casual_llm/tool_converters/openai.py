@@ -64,7 +64,7 @@ def tools_to_openai(tools: list[Tool]) -> list["ChatCompletionToolParam"]:
         >>> len(openai_tools)
         1
     """
-    logger.debug(f"Converting {len(tools)} tools to OpenAI format")
+    logger.debug("Converting %d tools to OpenAI format", len(tools))
     return [tool_to_openai(tool) for tool in tools]
 
 

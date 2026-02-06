@@ -1,21 +1,23 @@
 """
-Vision example using OpenAI and Ollama providers with image content.
+Vision example using OpenAI, Anthropic, and Ollama clients with image content.
 
 This example demonstrates how to send images to vision-capable models
 using casual-llm's multimodal message support.
 
 Requirements:
 - For OpenAI: OPENAI_API_KEY environment variable
+- For Anthropic: ANTHROPIC_API_KEY environment variable
 - For Ollama: Ollama running with a vision model (e.g., `ollama pull llava`)
-- pip install casual-llm[openai]
+- pip install casual-llm[openai,anthropic]
 """
 
 import asyncio
 import os
 from casual_llm import (
-    create_provider,
-    ModelConfig,
-    Provider,
+    OpenAIClient,
+    AnthropicClient,
+    OllamaClient,
+    Model,
     UserMessage,
     TextContent,
     ImageContent,
@@ -46,14 +48,9 @@ async def openai_vision_example():
     print("OpenAI Vision Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OPENAI_MODEL,
-        provider=Provider.OPENAI,
-        api_key=OPENAI_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OpenAIClient(api_key=OPENAI_API_KEY)
+    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
 
     # Create a multimodal message with text and image
     messages = [
@@ -68,11 +65,11 @@ async def openai_vision_example():
     print(f"Sending image to {OPENAI_MODEL}...")
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
-    response = await provider.chat(messages, response_format="text")
+    response = await model.chat(messages, response_format="text")
     print(f"\nResponse:\n{response.content}")
 
     # Show usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"\nUsage: {usage.total_tokens} tokens")
 
@@ -87,14 +84,9 @@ async def anthropic_vision_example():
     print("Anthropic Vision Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     # Create a multimodal message with text and image
     messages = [
@@ -110,11 +102,11 @@ async def anthropic_vision_example():
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
     try:
-        response = await provider.chat(messages, response_format="text")
+        response = await model.chat(messages, response_format="text")
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"\nUsage: {usage.total_tokens} tokens")
     except Exception as e:
@@ -128,14 +120,9 @@ async def ollama_vision_example():
     print("Ollama Vision Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OLLAMA_MODEL,
-        provider=Provider.OLLAMA,
-        base_url=OLLAMA_ENDPOINT,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OllamaClient(host=OLLAMA_ENDPOINT)
+    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
 
     # Create a multimodal message with text and image
     messages = [
@@ -151,11 +138,11 @@ async def ollama_vision_example():
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
     try:
-        response = await provider.chat(messages, response_format="text")
+        response = await model.chat(messages, response_format="text")
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"\nUsage: {usage.total_tokens} tokens")
     except Exception as e:
@@ -174,14 +161,9 @@ async def openai_base64_image_example():
     print("OpenAI Base64 Image Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OPENAI_MODEL,
-        provider=Provider.OPENAI,
-        api_key=OPENAI_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OpenAIClient(api_key=OPENAI_API_KEY)
+    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -205,11 +187,11 @@ async def openai_base64_image_example():
     ]
 
     print("Sending base64-encoded image (happy-dog.jpg)...")
-    response = await provider.chat(messages, response_format="text")
+    response = await model.chat(messages, response_format="text")
     print(f"\nResponse:\n{response.content}")
 
     # Show usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"\nUsage: {usage.total_tokens} tokens")
 
@@ -224,14 +206,9 @@ async def anthropic_base64_image_example():
     print("Anthropic Base64 Image Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -257,11 +234,11 @@ async def anthropic_base64_image_example():
     print("Sending base64-encoded image (happy-dog.jpg)...")
 
     try:
-        response = await provider.chat(messages, response_format="text")
+        response = await model.chat(messages, response_format="text")
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"\nUsage: {usage.total_tokens} tokens")
     except Exception as e:
@@ -275,14 +252,9 @@ async def ollama_base64_image_example():
     print("Ollama Base64 Image Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=OLLAMA_MODEL,
-        provider=Provider.OLLAMA,
-        base_url=OLLAMA_ENDPOINT,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Create client and model
+    client = OllamaClient(host=OLLAMA_ENDPOINT)
+    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -308,11 +280,11 @@ async def ollama_base64_image_example():
     print("Sending base64-encoded image (happy-dog.jpg)...")
 
     try:
-        response = await provider.chat(messages, response_format="text")
+        response = await model.chat(messages, response_format="text")
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
-        usage = provider.get_usage()
+        usage = model.get_usage()
         if usage:
             print(f"\nUsage: {usage.total_tokens} tokens")
     except Exception as e:

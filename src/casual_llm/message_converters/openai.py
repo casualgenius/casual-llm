@@ -92,7 +92,7 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
     if not messages:
         return []
 
-    logger.debug(f"Converting {len(messages)} messages to OpenAI format")
+    logger.debug("Converting %d messages to OpenAI format", len(messages))
 
     openai_messages: list[dict[str, Any]] = []
 
@@ -145,7 +145,7 @@ def convert_messages_to_openai(messages: list[ChatMessage]) -> list[dict[str, An
                 )
 
             case _:
-                logger.warning(f"Unknown message role: {msg.role}")
+                logger.warning("Unknown message role: %s", msg.role)
 
     return openai_messages
 
@@ -171,7 +171,7 @@ def convert_tool_calls_from_openai(
     tool_calls = []
 
     for tool in response_tool_calls:
-        logger.debug(f"Converting tool call: {tool.function.name}")
+        logger.debug("Converting tool call: %s", tool.function.name)
 
         tool_call = AssistantToolCall(
             id=tool.id,
@@ -182,7 +182,7 @@ def convert_tool_calls_from_openai(
         )
         tool_calls.append(tool_call)
 
-    logger.debug(f"Converted {len(tool_calls)} tool calls")
+    logger.debug("Converted %d tool calls", len(tool_calls))
     return tool_calls
 
 

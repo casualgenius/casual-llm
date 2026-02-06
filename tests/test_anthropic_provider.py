@@ -1,12 +1,13 @@
 """
-Tests for Anthropic LLM provider implementation.
+Tests for Anthropic LLM client implementation.
 """
 
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
-from casual_llm.config import ModelConfig, Provider
-from casual_llm.providers import create_provider
+from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.providers import create_client, create_model
+from casual_llm.model import Model
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage, StreamChunk
 from casual_llm.usage import Usage
 from casual_llm.tools import Tool, ToolParameter
@@ -36,25 +37,32 @@ class PersonWithAddress(BaseModel):
     address: Address
 
 
-# Try to import Anthropic provider - may not be available
+# Try to import Anthropic client - may not be available
 try:
-    from casual_llm.providers import AnthropicProvider
+    from casual_llm.providers import AnthropicClient
 
-    ANTHROPIC_AVAILABLE = AnthropicProvider is not None
+    ANTHROPIC_AVAILABLE = AnthropicClient is not None
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 
-@pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic provider not installed")
-class TestAnthropicProvider:
-    """Tests for AnthropicProvider"""
+@pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic client not installed")
+class TestAnthropicClient:
+    """Tests for AnthropicClient and Model"""
 
     @pytest.fixture
-    def provider(self):
-        """Create an AnthropicProvider instance for testing"""
-        return AnthropicProvider(
-            model="claude-3-haiku-20240307",
+    def client(self):
+        """Create an AnthropicClient instance for testing"""
+        return AnthropicClient(
             api_key="sk-ant-test-key",
+        )
+
+    @pytest.fixture
+    def model(self, client):
+        """Create a Model using the client"""
+        return Model(
+            client=client,
+            name="claude-3-haiku-20240307",
             temperature=0.7,
         )
 
@@ -90,36 +98,36 @@ class TestAnthropicProvider:
         return mock_response
 
     @pytest.mark.asyncio
-    async def test_generate_text_success(self, provider):
+    async def test_generate_text_success(self, model):
         """Test successful text generation"""
         mock_response = self._create_mock_response(content="Hello from Claude!")
 
         with patch.object(
-            provider.client.messages, "create", new=AsyncMock(return_value=mock_response)
+            model._client.client.messages, "create", new=AsyncMock(return_value=mock_response)
         ):
             messages = [
                 UserMessage(content="Hello"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello from Claude!"
             assert result.tool_calls is None
 
     @pytest.mark.asyncio
-    async def test_generate_json_success(self, provider):
+    async def test_generate_json_success(self, model):
         """Test successful JSON generation"""
         mock_response = self._create_mock_response(content='{"name": "test", "value": 42}')
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [
                 UserMessage(content="Give me JSON"),
             ]
 
-            result = await provider.chat(messages, response_format="json")
+            result = await model.chat(messages, response_format="json")
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "test", "value": 42}' in result.content
@@ -130,13 +138,13 @@ class TestAnthropicProvider:
             assert "JSON" in call_kwargs["system"]
 
     @pytest.mark.asyncio
-    async def test_generate_with_conversation(self, provider):
+    async def test_generate_with_conversation(self, model):
         """Test generation with multi-turn conversation"""
         mock_response = self._create_mock_response(content="Got it!")
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [
                 SystemMessage(content="You are a helpful assistant"),
                 UserMessage(content="Hello"),
@@ -144,7 +152,7 @@ class TestAnthropicProvider:
                 UserMessage(content="How are you?"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Got it!"
@@ -159,56 +167,56 @@ class TestAnthropicProvider:
             assert call_kwargs["messages"] is not None
 
     @pytest.mark.asyncio
-    async def test_generate_with_none_content(self, provider):
+    async def test_generate_with_none_content(self, model):
         """Test handling of messages with None content"""
         mock_response = self._create_mock_response(content="Handled!")
 
         with patch.object(
-            provider.client.messages, "create", new=AsyncMock(return_value=mock_response)
+            model._client.client.messages, "create", new=AsyncMock(return_value=mock_response)
         ):
             messages = [
                 UserMessage(content=None),  # None content
                 AssistantMessage(content="Response"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Handled!"
 
     @pytest.mark.asyncio
-    async def test_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
+    async def test_temperature_override(self, model):
+        """Test that per-call temperature overrides model temperature"""
+        # Model was created with temperature=0.7
+        assert model.temperature == 0.7
 
         mock_response = self._create_mock_response(content="Response")
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await provider.chat(messages, temperature=0.1)
+            await model.chat(messages, temperature=0.1)
 
             # Verify the temperature passed to Anthropic
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["temperature"] == 0.1
 
-            # Call without override - should use instance temperature
-            await provider.chat(messages)
+            # Call without override - should use model temperature
+            await model.chat(messages)
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["temperature"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_temperature_none_not_sent(self):
+    async def test_temperature_none_not_sent(self, client):
         """Test that temperature is not sent to API when None"""
-        # Create provider without temperature (defaults to None)
-        provider = AnthropicProvider(
-            model="claude-3-haiku-20240307",
-            api_key="sk-ant-test-key",
+        # Create model without temperature (defaults to None)
+        model = Model(
+            client=client,
+            name="claude-3-haiku-20240307",
         )
-        assert provider.temperature is None
+        assert model.temperature is None
 
         mock_response = MagicMock()
         text_block = MagicMock()
@@ -219,21 +227,21 @@ class TestAnthropicProvider:
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
 
             # Call without temperature - should not include it in request
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify temperature was NOT included in request
             call_kwargs = mock_create.call_args.kwargs
             assert "temperature" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_usage_tracking(self, provider):
-        """Test that usage statistics are tracked"""
+    async def test_usage_tracking(self, model):
+        """Test that usage statistics are tracked per-model"""
         # Check initial state
-        assert provider.get_usage() is None
+        assert model.get_usage() is None
 
         mock_response = self._create_mock_response(
             content="Response",
@@ -242,13 +250,13 @@ class TestAnthropicProvider:
         )
 
         with patch.object(
-            provider.client.messages, "create", new=AsyncMock(return_value=mock_response)
+            model._client.client.messages, "create", new=AsyncMock(return_value=mock_response)
         ):
             messages = [UserMessage(content="Test")]
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify usage was tracked
-            usage = provider.get_usage()
+            usage = model.get_usage()
             assert usage is not None
             assert isinstance(usage, Usage)
             assert usage.prompt_tokens == 15
@@ -256,16 +264,16 @@ class TestAnthropicProvider:
             assert usage.total_tokens == 40
 
     @pytest.mark.asyncio
-    async def test_json_schema_response_format(self, provider):
+    async def test_json_schema_response_format(self, model):
         """Test that Pydantic model is correctly converted to JSON Schema for Anthropic"""
         mock_response = self._create_mock_response(content='{"name": "Alice", "age": 30}')
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await provider.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, response_format=PersonInfo)
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -280,7 +288,7 @@ class TestAnthropicProvider:
             assert "schema" in system_prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_json_schema_nested_pydantic_model(self, provider):
+    async def test_json_schema_nested_pydantic_model(self, model):
         """Test that complex nested Pydantic models work correctly"""
         mock_response = self._create_mock_response(
             content=(
@@ -291,10 +299,10 @@ class TestAnthropicProvider:
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me person with address")]
 
-            result = await provider.chat(messages, response_format=PersonWithAddress)
+            result = await model.chat(messages, response_format=PersonWithAddress)
 
             assert isinstance(result, AssistantMessage)
 
@@ -307,16 +315,16 @@ class TestAnthropicProvider:
             assert "JSON" in system_prompt
 
     @pytest.mark.asyncio
-    async def test_backward_compat_json_format(self, provider):
+    async def test_backward_compat_json_format(self, model):
         """Test that existing 'json' format still works (backward compatibility)"""
         mock_response = self._create_mock_response(content='{"status": "ok"}')
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me JSON")]
 
-            result = await provider.chat(messages, response_format="json")
+            result = await model.chat(messages, response_format="json")
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
@@ -327,16 +335,16 @@ class TestAnthropicProvider:
             assert "JSON" in call_kwargs["system"]
 
     @pytest.mark.asyncio
-    async def test_backward_compat_text_format(self, provider):
+    async def test_backward_compat_text_format(self, model):
         """Test that existing 'text' format still works (backward compatibility)"""
         mock_response = self._create_mock_response(content="Plain text response")
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me text")]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Plain text response"
@@ -348,15 +356,15 @@ class TestAnthropicProvider:
                 assert "JSON" not in call_kwargs["system"]
 
     @pytest.mark.asyncio
-    async def test_max_tokens_passed(self, provider):
+    async def test_max_tokens_passed(self, model):
         """Test that max_tokens is passed to the API"""
         mock_response = self._create_mock_response(content="Short response")
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            result = await provider.chat(messages, response_format="text", max_tokens=100)
+            result = await model.chat(messages, response_format="text", max_tokens=100)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Short response"
@@ -366,22 +374,22 @@ class TestAnthropicProvider:
             assert call_kwargs["max_tokens"] == 100
 
     @pytest.mark.asyncio
-    async def test_default_max_tokens(self, provider):
+    async def test_default_max_tokens(self, model):
         """Test that default max_tokens is used when not specified"""
         mock_response = self._create_mock_response(content="Response")
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify default max_tokens was passed (4096)
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["max_tokens"] == 4096
 
     @pytest.mark.asyncio
-    async def test_stream_success(self, provider):
+    async def test_stream_success(self, model):
         """Test successful streaming with multiple chunks"""
 
         class MockStreamManager:
@@ -413,11 +421,13 @@ class TestAnthropicProvider:
                 for event in events:
                     yield event
 
-        with patch.object(provider.client.messages, "stream", return_value=MockStreamManager()):
+        with patch.object(
+            model._client.client.messages, "stream", return_value=MockStreamManager()
+        ):
             messages = [UserMessage(content="Say hello")]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Verify we got the expected chunks
@@ -428,7 +438,7 @@ class TestAnthropicProvider:
             assert collected_chunks[2].content == "!"
 
     @pytest.mark.asyncio
-    async def test_stream_empty_chunks(self, provider):
+    async def test_stream_empty_chunks(self, model):
         """Test that empty chunks are handled correctly"""
 
         class MockStreamManager:
@@ -460,11 +470,13 @@ class TestAnthropicProvider:
                 for event in events:
                     yield event
 
-        with patch.object(provider.client.messages, "stream", return_value=MockStreamManager()):
+        with patch.object(
+            model._client.client.messages, "stream", return_value=MockStreamManager()
+        ):
             messages = [UserMessage(content="Test")]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Only chunks with text content should be yielded
@@ -473,10 +485,10 @@ class TestAnthropicProvider:
             assert collected_chunks[1].content == " there"
 
     @pytest.mark.asyncio
-    async def test_stream_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature during streaming"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
+    async def test_stream_temperature_override(self, model):
+        """Test that per-call temperature overrides model temperature during streaming"""
+        # Model was created with temperature=0.7
+        assert model.temperature == 0.7
 
         class MockStreamManager:
             """Mock context manager for streaming"""
@@ -500,11 +512,11 @@ class TestAnthropicProvider:
 
         mock_stream = MagicMock(return_value=MockStreamManager())
 
-        with patch.object(provider.client.messages, "stream", mock_stream):
+        with patch.object(model._client.client.messages, "stream", mock_stream):
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            async for _ in provider.stream(messages, temperature=0.2):
+            async for _ in model.stream(messages, temperature=0.2):
                 pass
 
             # Verify the temperature passed to Anthropic
@@ -515,15 +527,15 @@ class TestAnthropicProvider:
             mock_stream.reset_mock()
             mock_stream.return_value = MockStreamManager()
 
-            # Call without override - should use instance temperature
-            async for _ in provider.stream(messages):
+            # Call without override - should use model temperature
+            async for _ in model.stream(messages):
                 pass
 
             call_kwargs = mock_stream.call_args.kwargs
             assert call_kwargs["temperature"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_tool_calls(self, provider):
+    async def test_tool_calls(self, model):
         """Test that tool calls are correctly parsed from response"""
         # Create a tool use block
         tool_use_block = MagicMock()
@@ -544,7 +556,7 @@ class TestAnthropicProvider:
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             # Define a test tool
             test_tool = Tool(
                 name="get_weather",
@@ -560,7 +572,7 @@ class TestAnthropicProvider:
 
             messages = [UserMessage(content="What's the weather in San Francisco?")]
 
-            result = await provider.chat(messages, tools=[test_tool])
+            result = await model.chat(messages, tools=[test_tool])
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Let me check the weather."
@@ -570,13 +582,13 @@ class TestAnthropicProvider:
             assert result.tool_calls[0].id == "tool_call_123"
 
     @pytest.mark.asyncio
-    async def test_tools_passed_to_api(self, provider):
+    async def test_tools_passed_to_api(self, model):
         """Test that tools are correctly converted and passed to the API"""
         mock_response = self._create_mock_response(content="I can help with that.")
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             # Define a test tool
             test_tool = Tool(
                 name="calculate",
@@ -590,7 +602,7 @@ class TestAnthropicProvider:
 
             messages = [UserMessage(content="Add 2 + 3")]
 
-            await provider.chat(messages, tools=[test_tool])
+            await model.chat(messages, tools=[test_tool])
 
             # Verify tools were passed
             call_kwargs = mock_create.call_args.kwargs
@@ -599,19 +611,19 @@ class TestAnthropicProvider:
             assert call_kwargs["tools"][0]["name"] == "calculate"
 
     @pytest.mark.asyncio
-    async def test_system_message_combined_with_json_format(self, provider):
+    async def test_system_message_combined_with_json_format(self, model):
         """Test that system message is preserved when JSON format is used"""
         mock_response = self._create_mock_response(content='{"result": "test"}')
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [
                 SystemMessage(content="You are a helpful assistant."),
                 UserMessage(content="Give me JSON"),
             ]
 
-            await provider.chat(messages, response_format="json")
+            await model.chat(messages, response_format="json")
 
             # Verify both system message and JSON instruction are in system param
             call_kwargs = mock_create.call_args.kwargs
@@ -621,13 +633,13 @@ class TestAnthropicProvider:
             assert "JSON" in system_prompt
 
     @pytest.mark.asyncio
-    async def test_extra_kwargs(self):
-        """Test that extra_kwargs are passed to the API"""
-        provider = AnthropicProvider(
-            model="claude-3-haiku-20240307",
+    async def test_extra_kwargs_on_client(self):
+        """Test that extra_kwargs on client are passed to the API"""
+        client = AnthropicClient(
             api_key="sk-ant-test-key",
             extra_kwargs={"metadata": {"user_id": "test123"}},
         )
+        model = Model(client=client, name="claude-3-haiku-20240307")
 
         mock_response = MagicMock()
         text_block = MagicMock()
@@ -638,9 +650,9 @@ class TestAnthropicProvider:
 
         mock_create = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client.messages, "create", new=mock_create):
+        with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify extra_kwargs were passed
             call_kwargs = mock_create.call_args.kwargs
@@ -648,47 +660,43 @@ class TestAnthropicProvider:
             assert call_kwargs["metadata"]["user_id"] == "test123"
 
 
-@pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic provider not installed")
-class TestCreateAnthropicProviderFactory:
-    """Tests for create_provider() factory function with Anthropic"""
+@pytest.mark.skipif(not ANTHROPIC_AVAILABLE, reason="Anthropic client not installed")
+class TestCreateAnthropicClientFactory:
+    """Tests for create_client() factory function with Anthropic"""
 
-    def test_create_anthropic_provider(self):
-        """Test creating an Anthropic provider"""
-        config = ModelConfig(
-            name="claude-3-haiku-20240307",
+    def test_create_anthropic_client(self):
+        """Test creating an Anthropic client"""
+        config = ClientConfig(
             provider=Provider.ANTHROPIC,
             api_key="sk-ant-test-key",
         )
 
-        provider = create_provider(config, timeout=30.0)
+        client = create_client(config)
 
-        assert isinstance(provider, AnthropicProvider)
-        assert provider.model == "claude-3-haiku-20240307"
+        assert isinstance(client, AnthropicClient)
 
-    def test_create_anthropic_provider_with_base_url(self):
-        """Test creating Anthropic provider with custom base URL"""
-        config = ModelConfig(
-            name="claude-3-opus-20240229",
+    def test_create_anthropic_client_with_base_url(self):
+        """Test creating Anthropic client with custom base URL"""
+        config = ClientConfig(
             provider=Provider.ANTHROPIC,
             api_key="sk-ant-test-key",
             base_url="https://custom.anthropic.endpoint/v1",
         )
 
-        provider = create_provider(config)
+        client = create_client(config)
 
-        assert isinstance(provider, AnthropicProvider)
-        assert provider.model == "claude-3-opus-20240229"
+        assert isinstance(client, AnthropicClient)
 
-    def test_create_anthropic_provider_with_temperature(self):
-        """Test creating Anthropic provider with temperature"""
+    def test_create_model_with_config(self):
+        """Test creating a Model from config"""
+        client = AnthropicClient(api_key="sk-ant-test-key")
         config = ModelConfig(
             name="claude-3-sonnet-20240229",
-            provider=Provider.ANTHROPIC,
-            api_key="sk-ant-test-key",
             temperature=0.5,
         )
 
-        provider = create_provider(config)
+        model = create_model(client, config)
 
-        assert isinstance(provider, AnthropicProvider)
-        assert provider.temperature == 0.5
+        assert isinstance(model, Model)
+        assert model.name == "claude-3-sonnet-20240229"
+        assert model.temperature == 0.5

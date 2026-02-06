@@ -16,11 +16,12 @@ from casual_llm.message_converters.openai import (
 )
 
 
-# Try to import OpenAI provider - may not be available
+# Try to import OpenAI client - may not be available
 try:
-    from casual_llm.providers import OpenAIProvider
+    from casual_llm.providers import OpenAIClient
+    from casual_llm import Model
 
-    OPENAI_AVAILABLE = OpenAIProvider is not None
+    OPENAI_AVAILABLE = OpenAIClient is not None
 except ImportError:
     OPENAI_AVAILABLE = False
 
@@ -243,21 +244,22 @@ class TestMessageConversionWithVision:
         assert result[2]["content"] == "What color is the cat?"
 
 
-@pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
-class TestOpenAIProviderVision:
-    """Tests for OpenAIProvider with vision content using gpt-4o model."""
+@pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+class TestOpenAIClientVision:
+    """Tests for OpenAIClient + Model with vision content using gpt-4o model."""
 
     @pytest.fixture
-    def provider(self):
-        """Create an OpenAIProvider instance for testing with gpt-4o model."""
-        return OpenAIProvider(
-            model="gpt-4o",
-            api_key="sk-test-key",
-            temperature=0.7,
-        )
+    def client(self):
+        """Create an OpenAIClient instance for testing."""
+        return OpenAIClient(api_key="sk-test-key")
+
+    @pytest.fixture
+    def model(self, client):
+        """Create a Model instance for testing with gpt-4o."""
+        return Model(client, name="gpt-4o", temperature=0.7)
 
     @pytest.mark.asyncio
-    async def test_chat_with_url_image(self, provider):
+    async def test_chat_with_url_image(self, client, model):
         """Test chat with URL image in user message."""
         mock_completion = MagicMock()
         mock_message = MagicMock(content="I see a cat in the image.")
@@ -267,7 +269,7 @@ class TestOpenAIProviderVision:
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(client.client.chat.completions, "create", new=mock_create):
             messages = [
                 UserMessage(
                     content=[
@@ -281,7 +283,7 @@ class TestOpenAIProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "I see a cat in the image."
@@ -300,7 +302,7 @@ class TestOpenAIProviderVision:
             )
 
     @pytest.mark.asyncio
-    async def test_chat_with_base64_image(self, provider):
+    async def test_chat_with_base64_image(self, client, model):
         """Test chat with base64 encoded image in user message."""
         mock_completion = MagicMock()
         mock_message = MagicMock(content="This is a small red dot.")
@@ -310,7 +312,7 @@ class TestOpenAIProviderVision:
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(client.client.chat.completions, "create", new=mock_create):
             messages = [
                 UserMessage(
                     content=[
@@ -324,7 +326,7 @@ class TestOpenAIProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "This is a small red dot."
@@ -337,7 +339,7 @@ class TestOpenAIProviderVision:
             assert image_content["image_url"]["url"] == "data:image/png;base64,base64encodeddata"
 
     @pytest.mark.asyncio
-    async def test_chat_with_multiple_images(self, provider):
+    async def test_chat_with_multiple_images(self, client, model):
         """Test chat with multiple images in a single message."""
         mock_completion = MagicMock()
         mock_message = MagicMock(content="The first image shows a cat, the second shows a dog.")
@@ -347,7 +349,7 @@ class TestOpenAIProviderVision:
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(client.client.chat.completions, "create", new=mock_create):
             messages = [
                 UserMessage(
                     content=[
@@ -364,7 +366,7 @@ class TestOpenAIProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
 
@@ -378,7 +380,7 @@ class TestOpenAIProviderVision:
             assert content[2]["type"] == "image_url"
 
     @pytest.mark.asyncio
-    async def test_chat_vision_conversation(self, provider):
+    async def test_chat_vision_conversation(self, client, model):
         """Test multi-turn conversation with vision."""
         mock_completion = MagicMock()
         mock_message = MagicMock(content="The cat appears to be orange.")
@@ -388,7 +390,7 @@ class TestOpenAIProviderVision:
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(client.client.chat.completions, "create", new=mock_create):
             messages = [
                 UserMessage(
                     content=[
@@ -403,7 +405,7 @@ class TestOpenAIProviderVision:
                 UserMessage(content="What color is the cat?"),
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "The cat appears to be orange."
@@ -420,7 +422,7 @@ class TestOpenAIProviderVision:
             assert chat_messages[2]["content"] == "What color is the cat?"
 
     @pytest.mark.asyncio
-    async def test_stream_with_vision(self, provider):
+    async def test_stream_with_vision(self, client, model):
         """Test streaming with vision content."""
 
         async def mock_stream():
@@ -439,7 +441,7 @@ class TestOpenAIProviderVision:
 
         mock_create = AsyncMock(return_value=mock_stream())
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(client.client.chat.completions, "create", new=mock_create):
             messages = [
                 UserMessage(
                     content=[
@@ -453,7 +455,7 @@ class TestOpenAIProviderVision:
             ]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Verify we got chunks
