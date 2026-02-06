@@ -2,6 +2,9 @@
 
 Stream responses in real-time for better user experience.
 
+> **Note:** All examples use `await` and `async for` which require an async context.
+> Wrap in `async def main()` and run with `asyncio.run(main())`.
+
 ## Basic Streaming
 
 ```python
@@ -44,8 +47,18 @@ Each chunk contains:
 ```python
 class StreamChunk:
     content: str | None       # Text content of this chunk
-    finish_reason: str | None # "stop" when complete, None otherwise
+    finish_reason: str | None # Reason for completion, or None while streaming
 ```
+
+### Finish Reasons by Provider
+
+The `finish_reason` value depends on the provider:
+
+| Provider | Possible Values |
+|----------|----------------|
+| OpenAI | `"stop"`, `"length"`, `"content_filter"`, `"tool_calls"`, `None` |
+| Anthropic | `"end_turn"`, `"stop_sequence"`, `None` |
+| Ollama | `"stop"`, `None` |
 
 ## Handling Finish Reason
 
@@ -54,8 +67,39 @@ async for chunk in model.stream(messages):
     if chunk.content:
         print(chunk.content, end="", flush=True)
 
-    if chunk.finish_reason == "stop":
-        print("\n[Stream complete]")
+    if chunk.finish_reason:
+        if chunk.finish_reason == "stop":
+            print("\n[Complete]")
+        elif chunk.finish_reason == "length":
+            print("\n[Truncated - max tokens reached]")
+        elif chunk.finish_reason == "content_filter":
+            print("\n[Content filtered]")
+```
+
+## Complete Runnable Example
+
+```python
+import asyncio
+from casual_llm import OpenAIClient, Model, UserMessage
+
+async def main():
+    client = OpenAIClient(api_key="sk-...")
+    model = Model(client, name="gpt-4o")
+
+    messages = [UserMessage(content="Write a haiku about Python.")]
+
+    async for chunk in model.stream(messages):
+        if chunk.content:
+            print(chunk.content, end="", flush=True)
+
+    print()
+
+    usage = model.get_usage()
+    if usage:
+        print(f"Tokens used: {usage.total_tokens}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Provider Support

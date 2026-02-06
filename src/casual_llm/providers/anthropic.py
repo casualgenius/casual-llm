@@ -72,7 +72,7 @@ class AnthropicClient:
         self.client = AsyncAnthropic(**client_kwargs)
         self.extra_kwargs = extra_kwargs or {}
 
-        logger.info(f"AnthropicClient initialized: base_url={base_url or 'default'}")
+        logger.info("AnthropicClient initialized: base_url=%s", base_url or "default")
 
     async def _chat(
         self,
@@ -108,7 +108,7 @@ class AnthropicClient:
 
         # Convert messages to Anthropic format (excludes system messages)
         anthropic_messages = convert_messages_to_anthropic(messages)
-        logger.debug(f"Converted {len(messages)} messages to Anthropic format")
+        logger.debug("Converted %d messages to Anthropic format", len(messages))
 
         # Build request kwargs - max_tokens is required by Anthropic
         request_kwargs: dict[str, Any] = {
@@ -148,18 +148,18 @@ class AnthropicClient:
                 request_kwargs["system"] = f"{system_content}\n\n{schema_instruction}"
             else:
                 request_kwargs["system"] = schema_instruction
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_anthropic(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to request")
+            logger.debug("Added %d tools to request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Generating with model {model}")
+        logger.debug("Generating with model %s", model)
         response = await self.client.messages.create(**request_kwargs)
 
         # Extract usage statistics (Anthropic uses input_tokens/output_tokens)
@@ -170,8 +170,9 @@ class AnthropicClient:
                 completion_tokens=response.usage.output_tokens,
             )
             logger.debug(
-                f"Usage: {response.usage.input_tokens} input tokens, "
-                f"{response.usage.output_tokens} output tokens"
+                "Usage: %d input tokens, %d output tokens",
+                response.usage.input_tokens,
+                response.usage.output_tokens,
             )
 
         # Parse response content blocks
@@ -187,10 +188,10 @@ class AnthropicClient:
         # Convert tool calls if present
         tool_calls = None
         if tool_use_blocks:
-            logger.debug(f"Assistant requested {len(tool_use_blocks)} tool calls")
+            logger.debug("Assistant requested %d tool calls", len(tool_use_blocks))
             tool_calls = convert_tool_calls_from_anthropic(tool_use_blocks)
 
-        logger.debug(f"Generated {len(text_content)} characters")
+        logger.debug("Generated %d characters", len(text_content))
         return AssistantMessage(content=text_content, tool_calls=tool_calls), usage
 
     async def _stream(
@@ -227,7 +228,7 @@ class AnthropicClient:
 
         # Convert messages to Anthropic format (excludes system messages)
         anthropic_messages = convert_messages_to_anthropic(messages)
-        logger.debug(f"Converted {len(messages)} messages to Anthropic format for streaming")
+        logger.debug("Converted %d messages to Anthropic format for streaming", len(messages))
 
         # Build request kwargs - max_tokens is required by Anthropic
         request_kwargs: dict[str, Any] = {
@@ -263,18 +264,18 @@ class AnthropicClient:
                 request_kwargs["system"] = f"{system_content}\n\n{schema_instruction}"
             else:
                 request_kwargs["system"] = schema_instruction
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_anthropic(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to streaming request")
+            logger.debug("Added %d tools to streaming request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Starting stream with model {model}")
+        logger.debug("Starting stream with model %s", model)
 
         async with self.client.messages.stream(**request_kwargs) as stream:
             async for event in stream:

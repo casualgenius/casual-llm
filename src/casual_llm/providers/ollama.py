@@ -60,7 +60,7 @@ class OllamaClient:
         # Create async client
         self.client = AsyncClient(host=self.host, timeout=timeout)
 
-        logger.info(f"OllamaClient initialized: host={host}")
+        logger.info("OllamaClient initialized: host=%s", host)
 
     async def _chat(
         self,
@@ -94,7 +94,7 @@ class OllamaClient:
         """
         # Convert messages to Ollama format using converter (async for image support)
         chat_messages = await convert_messages_to_ollama(messages)
-        logger.debug(f"Converted {len(messages)} messages to Ollama format")
+        logger.debug("Converted %d messages to Ollama format", len(messages))
 
         # Build options
         options: dict[str, Any] = {}
@@ -118,16 +118,16 @@ class OllamaClient:
             # Extract JSON Schema from Pydantic model and pass directly to format
             schema = response_format.model_json_schema()
             request_kwargs["format"] = schema
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
         # "text" is the default - no format parameter needed
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_ollama(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to request")
+            logger.debug("Added %d tools to request", len(converted_tools))
 
-        logger.debug(f"Generating with model {model}")
+        logger.debug("Generating with model %s", model)
         response = await self.client.chat(**request_kwargs)
 
         # Extract message from response
@@ -140,19 +140,19 @@ class OllamaClient:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
         )
-        logger.debug(f"Usage: {prompt_tokens} prompt tokens, {completion_tokens} completion tokens")
+        logger.debug("Usage: %d prompt tokens, %d completion tokens", prompt_tokens, completion_tokens)
 
         # Parse tool calls if present
         tool_calls = None
         if response_message.tool_calls:
-            logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+            logger.debug("Assistant requested %d tool calls", len(response_message.tool_calls))
             # Convert ollama tool calls to our format
             # The converter handles ID generation and argument conversion
             tool_calls = convert_tool_calls_from_ollama(response_message.tool_calls)
 
         # Return AssistantMessage and Usage
         content = response_message.content.strip() if response_message.content else ""
-        logger.debug(f"Generated {len(content)} characters")
+        logger.debug("Generated %d characters", len(content))
         return AssistantMessage(content=content, tool_calls=tool_calls), usage
 
     async def _stream(
@@ -187,7 +187,7 @@ class OllamaClient:
         """
         # Convert messages to Ollama format using converter (async for image support)
         chat_messages = await convert_messages_to_ollama(messages)
-        logger.debug(f"Converted {len(messages)} messages to Ollama format for streaming")
+        logger.debug("Converted %d messages to Ollama format for streaming", len(messages))
 
         # Build options
         options: dict[str, Any] = {}
@@ -211,16 +211,16 @@ class OllamaClient:
             # Extract JSON Schema from Pydantic model and pass directly to format
             schema = response_format.model_json_schema()
             request_kwargs["format"] = schema
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
         # "text" is the default - no format parameter needed
 
         # Add tools if provided
         if tools:
             converted_tools = tools_to_ollama(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to streaming request")
+            logger.debug("Added %d tools to streaming request", len(converted_tools))
 
-        logger.debug(f"Starting stream with model {model}")
+        logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat(**request_kwargs)
 
         async for chunk in stream:

@@ -72,7 +72,7 @@ class OpenAIClient:
         self.client = AsyncOpenAI(**client_kwargs)
         self.extra_kwargs = extra_kwargs or {}
 
-        logger.info(f"OpenAIClient initialized: base_url={base_url or 'default'}")
+        logger.info("OpenAIClient initialized: base_url=%s", base_url or "default")
 
     async def _chat(
         self,
@@ -105,7 +105,7 @@ class OpenAIClient:
         """
         # Convert messages to OpenAI format using converter
         chat_messages = convert_messages_to_openai(messages)
-        logger.debug(f"Converted {len(messages)} messages to OpenAI format")
+        logger.debug("Converted %d messages to OpenAI format", len(messages))
 
         # Build request kwargs
         request_kwargs: dict[str, Any] = {
@@ -130,7 +130,7 @@ class OpenAIClient:
                     "schema": schema,
                 },
             }
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
         # "text" is the default - no response_format needed
 
         if max_tokens:
@@ -140,12 +140,12 @@ class OpenAIClient:
         if tools:
             converted_tools = tools_to_openai(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to request")
+            logger.debug("Added %d tools to request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Generating with model {model}")
+        logger.debug("Generating with model %s", model)
         response = await self.client.chat.completions.create(**request_kwargs)
 
         response_message = response.choices[0].message
@@ -158,19 +158,20 @@ class OpenAIClient:
                 completion_tokens=response.usage.completion_tokens,
             )
             logger.debug(
-                f"Usage: {response.usage.prompt_tokens} prompt tokens, "
-                f"{response.usage.completion_tokens} completion tokens"
+                "Usage: %d prompt tokens, %d completion tokens",
+                response.usage.prompt_tokens,
+                response.usage.completion_tokens,
             )
 
         # Parse tool calls if present
         tool_calls = None
         if hasattr(response_message, "tool_calls") and response_message.tool_calls:
-            logger.debug(f"Assistant requested {len(response_message.tool_calls)} tool calls")
+            logger.debug("Assistant requested %d tool calls", len(response_message.tool_calls))
             tool_calls = convert_tool_calls_from_openai(response_message.tool_calls)
 
         # Return AssistantMessage and Usage
         content = response_message.content or ""
-        logger.debug(f"Generated {len(content)} characters")
+        logger.debug("Generated %d characters", len(content))
         return AssistantMessage(content=content, tool_calls=tool_calls), usage
 
     async def _stream(
@@ -204,7 +205,7 @@ class OpenAIClient:
         """
         # Convert messages to OpenAI format using converter
         chat_messages = convert_messages_to_openai(messages)
-        logger.debug(f"Converted {len(messages)} messages to OpenAI format for streaming")
+        logger.debug("Converted %d messages to OpenAI format for streaming", len(messages))
 
         # Build request kwargs
         request_kwargs: dict[str, Any] = {
@@ -230,7 +231,7 @@ class OpenAIClient:
                     "schema": schema,
                 },
             }
-            logger.debug(f"Using JSON Schema from Pydantic model: {response_format.__name__}")
+            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
         # "text" is the default - no response_format needed
 
         if max_tokens:
@@ -240,12 +241,12 @@ class OpenAIClient:
         if tools:
             converted_tools = tools_to_openai(tools)
             request_kwargs["tools"] = converted_tools
-            logger.debug(f"Added {len(converted_tools)} tools to streaming request")
+            logger.debug("Added %d tools to streaming request", len(converted_tools))
 
         # Merge extra kwargs
         request_kwargs.update(self.extra_kwargs)
 
-        logger.debug(f"Starting stream with model {model}")
+        logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat.completions.create(**request_kwargs)
 
         async for chunk in stream:

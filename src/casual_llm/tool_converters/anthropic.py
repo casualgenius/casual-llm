@@ -60,7 +60,7 @@ def tools_to_anthropic(tools: list[Tool]) -> list["ToolParam"]:
         >>> len(anthropic_tools)
         1
     """
-    logger.debug(f"Converting {len(tools)} tools to Anthropic format")
+    logger.debug("Converting %d tools to Anthropic format", len(tools))
     return [tool_to_anthropic(tool) for tool in tools]
 
 
