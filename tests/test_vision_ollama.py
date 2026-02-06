@@ -16,11 +16,12 @@ from casual_llm.message_converters.ollama import (
 )
 
 
-# Try to import Ollama provider - may not be available
+# Try to import Ollama client - may not be available
 try:
-    from casual_llm.providers import OllamaProvider
+    from casual_llm.providers import OllamaClient
+    from casual_llm import Model
 
-    OLLAMA_AVAILABLE = OllamaProvider is not None
+    OLLAMA_AVAILABLE = OllamaClient is not None
 except ImportError:
     OLLAMA_AVAILABLE = False
 
@@ -327,21 +328,22 @@ class TestMessageConversionWithVision:
         assert result[0]["images"][0] == "fetchedbase64data"
 
 
-@pytest.mark.skipif(not OLLAMA_AVAILABLE, reason="Ollama provider not installed")
-class TestOllamaProviderVision:
-    """Tests for OllamaProvider with vision content using llava model."""
+@pytest.mark.skipif(not OLLAMA_AVAILABLE, reason="Ollama client not installed")
+class TestOllamaClientVision:
+    """Tests for OllamaClient + Model with vision content using llava model."""
 
     @pytest.fixture
-    def provider(self):
-        """Create an OllamaProvider instance for testing with llava model."""
-        return OllamaProvider(
-            model="llava",
-            host="http://localhost:11434",
-            temperature=0.7,
-        )
+    def client(self):
+        """Create an OllamaClient instance for testing."""
+        return OllamaClient(host="http://localhost:11434")
+
+    @pytest.fixture
+    def model(self, client):
+        """Create a Model instance for testing with llava."""
+        return Model(client, name="llava", temperature=0.7)
 
     @pytest.mark.asyncio
-    async def test_chat_with_base64_image(self, provider):
+    async def test_chat_with_base64_image(self, client, model):
         """Test chat with base64 encoded image in user message."""
         mock_message = MagicMock()
         mock_message.content = "I see a cat in the image."
@@ -354,7 +356,7 @@ class TestOllamaProviderVision:
 
         mock_chat = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client, "chat", new=mock_chat):
+        with patch.object(client.client, "chat", new=mock_chat):
             messages = [
                 UserMessage(
                     content=[
@@ -368,7 +370,7 @@ class TestOllamaProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "I see a cat in the image."
@@ -384,7 +386,7 @@ class TestOllamaProviderVision:
             assert chat_messages[0]["images"][0] == "base64imagedata"
 
     @pytest.mark.asyncio
-    async def test_chat_with_url_image(self, provider):
+    async def test_chat_with_url_image(self, client, model):
         """Test chat with URL image in user message (fetched and converted)."""
         mock_message = MagicMock()
         mock_message.content = "This is a small red dot."
@@ -398,7 +400,7 @@ class TestOllamaProviderVision:
         mock_chat = AsyncMock(return_value=mock_response)
 
         with (
-            patch.object(provider.client, "chat", new=mock_chat),
+            patch.object(client.client, "chat", new=mock_chat),
             patch(
                 "casual_llm.message_converters.ollama.fetch_image_as_base64",
                 new_callable=AsyncMock,
@@ -418,7 +420,7 @@ class TestOllamaProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "This is a small red dot."
@@ -429,7 +431,7 @@ class TestOllamaProviderVision:
             assert chat_messages[0]["images"][0] == "fetchedimagedata"
 
     @pytest.mark.asyncio
-    async def test_chat_with_multiple_images(self, provider):
+    async def test_chat_with_multiple_images(self, client, model):
         """Test chat with multiple images in a single message."""
         mock_message = MagicMock()
         mock_message.content = "The first image shows a cat, the second shows a dog."
@@ -442,7 +444,7 @@ class TestOllamaProviderVision:
 
         mock_chat = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client, "chat", new=mock_chat):
+        with patch.object(client.client, "chat", new=mock_chat):
             messages = [
                 UserMessage(
                     content=[
@@ -461,7 +463,7 @@ class TestOllamaProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
 
@@ -474,7 +476,7 @@ class TestOllamaProviderVision:
             assert chat_messages[0]["images"][1] == "dogimagedata"
 
     @pytest.mark.asyncio
-    async def test_chat_vision_conversation(self, provider):
+    async def test_chat_vision_conversation(self, client, model):
         """Test multi-turn conversation with vision."""
         mock_message = MagicMock()
         mock_message.content = "The cat appears to be orange."
@@ -487,7 +489,7 @@ class TestOllamaProviderVision:
 
         mock_chat = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client, "chat", new=mock_chat):
+        with patch.object(client.client, "chat", new=mock_chat):
             messages = [
                 UserMessage(
                     content=[
@@ -503,7 +505,7 @@ class TestOllamaProviderVision:
                 UserMessage(content="What color is the cat?"),
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "The cat appears to be orange."
@@ -522,7 +524,7 @@ class TestOllamaProviderVision:
             assert "images" not in chat_messages[2]
 
     @pytest.mark.asyncio
-    async def test_stream_with_vision(self, provider):
+    async def test_stream_with_vision(self, client, model):
         """Test streaming with vision content."""
 
         async def mock_stream():
@@ -546,7 +548,7 @@ class TestOllamaProviderVision:
 
         mock_chat = AsyncMock(return_value=mock_stream())
 
-        with patch.object(provider.client, "chat", new=mock_chat):
+        with patch.object(client.client, "chat", new=mock_chat):
             messages = [
                 UserMessage(
                     content=[
@@ -561,7 +563,7 @@ class TestOllamaProviderVision:
             ]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Verify we got chunks
@@ -578,7 +580,7 @@ class TestOllamaProviderVision:
             assert chat_messages[0]["images"][0] == "catimage"
 
     @pytest.mark.asyncio
-    async def test_chat_with_data_uri_image(self, provider):
+    async def test_chat_with_data_uri_image(self, client, model):
         """Test chat with data URI image (prefix stripped)."""
         mock_message = MagicMock()
         mock_message.content = "I see a colorful pattern."
@@ -591,7 +593,7 @@ class TestOllamaProviderVision:
 
         mock_chat = AsyncMock(return_value=mock_response)
 
-        with patch.object(provider.client, "chat", new=mock_chat):
+        with patch.object(client.client, "chat", new=mock_chat):
             messages = [
                 UserMessage(
                     content=[
@@ -605,7 +607,7 @@ class TestOllamaProviderVision:
                 )
             ]
 
-            result = await provider.chat(messages)
+            result = await model.chat(messages)
 
             assert isinstance(result, AssistantMessage)
 

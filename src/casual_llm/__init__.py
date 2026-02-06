@@ -2,24 +2,45 @@
 casual-llm - Lightweight LLM provider abstraction with standard message models.
 
 A simple, protocol-based library for working with different LLM providers
-(OpenAI, Ollama, etc.) using a unified interface and OpenAI-compatible message format.
+(OpenAI, Ollama, Anthropic) using a unified interface and OpenAI-compatible message format.
 
 Part of the casual-* ecosystem of lightweight AI tools.
+
+Example usage:
+    >>> from casual_llm import OpenAIClient, Model, UserMessage
+    >>>
+    >>> # Create client (configured once)
+    >>> client = OpenAIClient(api_key="...")
+    >>>
+    >>> # Create multiple models using the same client
+    >>> gpt4 = Model(client, name="gpt-4", temperature=0.7)
+    >>> gpt4o = Model(client, name="gpt-4o")
+    >>>
+    >>> # Use models
+    >>> response = await gpt4.chat([UserMessage(content="Hello")])
+    >>> print(response.content)
+    >>>
+    >>> # Each model tracks its own usage
+    >>> print(f"Used {gpt4.get_usage().total_tokens} tokens")
 """
 
-__version__ = "0.4.3"
+__version__ = "0.5.0"
 
-# Model configuration
-from casual_llm.config import ModelConfig, Provider
+# Configuration
+from casual_llm.config import ClientConfig, ModelConfig, Provider
 
-# Provider protocol and implementations
+# Client protocol and implementations
 from casual_llm.providers import (
-    LLMProvider,
-    OllamaProvider,
-    OpenAIProvider,
-    AnthropicProvider,
-    create_provider,
+    LLMClient,
+    OllamaClient,
+    OpenAIClient,
+    AnthropicClient,
+    create_client,
+    create_model,
 )
+
+# Model class
+from casual_llm.model import Model
 
 # OpenAI-compatible message models
 from casual_llm.messages import (
@@ -66,14 +87,19 @@ from casual_llm.message_converters import (
 __all__ = [
     # Version
     "__version__",
-    # Providers
-    "LLMProvider",
+    # Configuration
+    "ClientConfig",
     "ModelConfig",
     "Provider",
-    "OllamaProvider",
-    "OpenAIProvider",
-    "AnthropicProvider",
-    "create_provider",
+    # Clients
+    "LLMClient",
+    "OllamaClient",
+    "OpenAIClient",
+    "AnthropicClient",
+    "create_client",
+    "create_model",
+    # Model
+    "Model",
     # Messages
     "ChatMessage",
     "UserMessage",

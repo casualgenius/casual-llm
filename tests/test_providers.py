@@ -1,12 +1,13 @@
 """
-Tests for LLM provider implementations.
+Tests for LLM client and Model implementations.
 """
 
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
-from casual_llm.config import ModelConfig, Provider
-from casual_llm.providers import OllamaProvider, create_provider
+from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.providers import OllamaClient, create_client, create_model
+from casual_llm.model import Model
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage, StreamChunk
 from casual_llm.usage import Usage
 
@@ -35,30 +36,37 @@ class PersonWithAddress(BaseModel):
     address: Address
 
 
-# Try to import OpenAI provider - may not be available
+# Try to import OpenAI client - may not be available
 try:
-    from casual_llm.providers import OpenAIProvider
+    from casual_llm.providers import OpenAIClient
 
-    OPENAI_AVAILABLE = OpenAIProvider is not None
+    OPENAI_AVAILABLE = OpenAIClient is not None
 except ImportError:
     OPENAI_AVAILABLE = False
 
 
-class TestOllamaProvider:
-    """Tests for OllamaProvider"""
+class TestOllamaClient:
+    """Tests for OllamaClient and Model"""
 
     @pytest.fixture
-    def provider(self):
-        """Create an OllamaProvider instance for testing"""
-        return OllamaProvider(
-            model="qwen2.5:7b-instruct",
+    def client(self):
+        """Create an OllamaClient instance for testing"""
+        return OllamaClient(
             host="http://localhost:11434",
-            temperature=0.7,
             timeout=30.0,
         )
 
+    @pytest.fixture
+    def model(self, client):
+        """Create a Model using the client"""
+        return Model(
+            client=client,
+            name="qwen2.5:7b-instruct",
+            temperature=0.7,
+        )
+
     @pytest.mark.asyncio
-    async def test_generate_text_success(self, provider):
+    async def test_generate_text_success(self, model):
         """Test successful text generation"""
         mock_response = MagicMock()
         mock_response.message.content = "Hello, I'm a test response!"
@@ -69,14 +77,14 @@ class TestOllamaProvider:
                 UserMessage(content="Hello"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello, I'm a test response!"
             assert result.tool_calls is None
 
     @pytest.mark.asyncio
-    async def test_generate_json_success(self, provider):
+    async def test_generate_json_success(self, model):
         """Test successful JSON generation"""
         mock_response = MagicMock()
         mock_response.message.content = '{"name": "test", "value": 42}'
@@ -87,13 +95,13 @@ class TestOllamaProvider:
                 UserMessage(content="Give me JSON"),
             ]
 
-            result = await provider.chat(messages, response_format="json")
+            result = await model.chat(messages, response_format="json")
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "test", "value": 42}' in result.content
 
     @pytest.mark.asyncio
-    async def test_generate_with_conversation(self, provider):
+    async def test_generate_with_conversation(self, model):
         """Test generation with multi-turn conversation"""
         mock_response = MagicMock()
         mock_response.message.content = "Got it!"
@@ -109,7 +117,7 @@ class TestOllamaProvider:
                 UserMessage(content="How are you?"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Got it!"
@@ -118,7 +126,7 @@ class TestOllamaProvider:
             assert call_args is not None
 
     @pytest.mark.asyncio
-    async def test_generate_with_none_content(self, provider):
+    async def test_generate_with_none_content(self, model):
         """Test handling of messages with None content"""
         mock_response = MagicMock()
         mock_response.message.content = "Handled!"
@@ -130,16 +138,16 @@ class TestOllamaProvider:
                 AssistantMessage(content="Response"),
             ]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Handled!"
 
     @pytest.mark.asyncio
-    async def test_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
+    async def test_temperature_override(self, model):
+        """Test that per-call temperature overrides model default temperature"""
+        # Model was created with temperature=0.7
+        assert model.temperature == 0.7
 
         mock_response = MagicMock()
         mock_response.message.content = "Response"
@@ -151,26 +159,26 @@ class TestOllamaProvider:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await provider.chat(messages, temperature=0.1)
+            await model.chat(messages, temperature=0.1)
 
             # Verify the temperature passed to Ollama
             call_kwargs = mock_chat.call_args.kwargs
             assert call_kwargs["options"]["temperature"] == 0.1
 
-            # Call without override - should use instance temperature
-            await provider.chat(messages)
+            # Call without override - should use model default temperature
+            await model.chat(messages)
             call_kwargs = mock_chat.call_args.kwargs
             assert call_kwargs["options"]["temperature"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_temperature_none_not_sent(self):
+    async def test_temperature_none_not_sent(self, client):
         """Test that temperature is not sent to API when None"""
-        # Create provider without temperature (defaults to None)
-        provider = OllamaProvider(
-            model="test-model",
-            host="http://localhost:11434",
+        # Create model without temperature (defaults to None)
+        model = Model(
+            client=client,
+            name="test-model",
         )
-        assert provider.temperature is None
+        assert model.temperature is None
 
         mock_response = MagicMock()
         mock_response.message.content = "Response"
@@ -182,17 +190,17 @@ class TestOllamaProvider:
             messages = [UserMessage(content="Test")]
 
             # Call without temperature - should not include it in options
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify temperature was NOT included in options
             call_kwargs = mock_chat.call_args.kwargs
             assert "temperature" not in call_kwargs["options"]
 
     @pytest.mark.asyncio
-    async def test_usage_tracking(self, provider):
-        """Test that usage statistics are tracked"""
+    async def test_usage_tracking(self, model):
+        """Test that usage statistics are tracked per-model"""
         # Check initial state
-        assert provider.get_usage() is None
+        assert model.get_usage() is None
 
         mock_response = MagicMock()
         mock_response.message.content = "Response"
@@ -203,10 +211,10 @@ class TestOllamaProvider:
 
         with patch("ollama.AsyncClient.chat", new=AsyncMock(return_value=mock_response)):
             messages = [UserMessage(content="Test")]
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify usage was tracked
-            usage = provider.get_usage()
+            usage = model.get_usage()
             assert usage is not None
             assert isinstance(usage, Usage)
             assert usage.prompt_tokens == 10
@@ -214,7 +222,7 @@ class TestOllamaProvider:
             assert usage.total_tokens == 30
 
     @pytest.mark.asyncio
-    async def test_json_schema_response_format(self, provider):
+    async def test_json_schema_response_format(self, model):
         """Test that Pydantic model is correctly converted to JSON Schema for Ollama"""
         mock_response = MagicMock()
         mock_response.message.content = '{"name": "Alice", "age": 30}'
@@ -225,7 +233,7 @@ class TestOllamaProvider:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await provider.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, response_format=PersonInfo)
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -246,7 +254,7 @@ class TestOllamaProvider:
             assert schema["properties"]["age"]["type"] == "integer"
 
     @pytest.mark.asyncio
-    async def test_json_schema_nested_pydantic_model(self, provider):
+    async def test_json_schema_nested_pydantic_model(self, model):
         """Test that complex nested Pydantic models work correctly"""
         mock_response = MagicMock()
         mock_response.message.content = (
@@ -260,7 +268,7 @@ class TestOllamaProvider:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me person with address")]
 
-            result = await provider.chat(messages, response_format=PersonWithAddress)
+            result = await model.chat(messages, response_format=PersonWithAddress)
 
             assert isinstance(result, AssistantMessage)
 
@@ -279,7 +287,7 @@ class TestOllamaProvider:
                 assert "Address" in schema["$defs"]
 
     @pytest.mark.asyncio
-    async def test_backward_compat_json_format(self, provider):
+    async def test_backward_compat_json_format(self, model):
         """Test that existing 'json' format still works (backward compatibility)"""
         mock_response = MagicMock()
         mock_response.message.content = '{"status": "ok"}'
@@ -290,7 +298,7 @@ class TestOllamaProvider:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me JSON")]
 
-            result = await provider.chat(messages, response_format="json")
+            result = await model.chat(messages, response_format="json")
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
@@ -300,7 +308,7 @@ class TestOllamaProvider:
             assert call_kwargs["format"] == "json"
 
     @pytest.mark.asyncio
-    async def test_backward_compat_text_format(self, provider):
+    async def test_backward_compat_text_format(self, model):
         """Test that existing 'text' format still works (backward compatibility)"""
         mock_response = MagicMock()
         mock_response.message.content = "Plain text response"
@@ -311,7 +319,7 @@ class TestOllamaProvider:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me text")]
 
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Plain text response"
@@ -321,7 +329,7 @@ class TestOllamaProvider:
             assert "format" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_stream_success(self, provider):
+    async def test_stream_success(self, model):
         """Test successful streaming with multiple chunks"""
 
         async def mock_stream():
@@ -338,7 +346,7 @@ class TestOllamaProvider:
             messages = [UserMessage(content="Say hello")]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Verify we got the expected chunks
@@ -354,7 +362,7 @@ class TestOllamaProvider:
             assert collected_chunks[1].finish_reason is None
 
     @pytest.mark.asyncio
-    async def test_stream_empty_chunks(self, provider):
+    async def test_stream_empty_chunks(self, model):
         """Test that empty chunks are handled (not yielded)"""
 
         async def mock_stream():
@@ -373,7 +381,7 @@ class TestOllamaProvider:
             messages = [UserMessage(content="Test")]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Only non-empty chunks should be yielded
@@ -382,10 +390,10 @@ class TestOllamaProvider:
             assert collected_chunks[1].content == " there"
 
     @pytest.mark.asyncio
-    async def test_stream_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature during streaming"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
+    async def test_stream_temperature_override(self, model):
+        """Test that per-call temperature overrides model temperature during streaming"""
+        # Model was created with temperature=0.7
+        assert model.temperature == 0.7
 
         async def mock_stream():
             """Empty mock stream for testing parameters"""
@@ -401,7 +409,7 @@ class TestOllamaProvider:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            async for _ in provider.stream(messages, temperature=0.2):
+            async for _ in model.stream(messages, temperature=0.2):
                 pass
 
             # Verify the temperature passed to Ollama
@@ -413,29 +421,36 @@ class TestOllamaProvider:
             mock_chat.reset_mock()
             mock_chat.return_value = mock_stream()
 
-            # Call without override - should use instance temperature
-            async for _ in provider.stream(messages):
+            # Call without override - should use model temperature
+            async for _ in model.stream(messages):
                 pass
 
             call_kwargs = mock_chat.call_args.kwargs
             assert call_kwargs["options"]["temperature"] == 0.7
 
 
-@pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
-class TestOpenAIProvider:
-    """Tests for OpenAIProvider"""
+@pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+class TestOpenAIClient:
+    """Tests for OpenAIClient and Model"""
 
     @pytest.fixture
-    def provider(self):
-        """Create an OpenAIProvider instance for testing"""
-        return OpenAIProvider(
-            model="gpt-4o-mini",
+    def client(self):
+        """Create an OpenAIClient instance for testing"""
+        return OpenAIClient(
             api_key="sk-test-key",
+        )
+
+    @pytest.fixture
+    def model(self, client):
+        """Create a Model using the client"""
+        return Model(
+            client=client,
+            name="gpt-4o-mini",
             temperature=0.7,
         )
 
     @pytest.mark.asyncio
-    async def test_generate_text_success(self, provider):
+    async def test_generate_text_success(self, model):
         """Test successful text generation"""
         mock_completion = MagicMock()
         mock_message = MagicMock(content="Hello from OpenAI!", tool_calls=None)
@@ -444,41 +459,45 @@ class TestOpenAIProvider:
         mock_completion.choices = [MagicMock(message=mock_message)]
 
         with patch.object(
-            provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
+            model._client.client.chat.completions,
+            "create",
+            new=AsyncMock(return_value=mock_completion),
         ):
             messages = [UserMessage(content="Hello")]
-            result = await provider.chat(messages, response_format="text")
+            result = await model.chat(messages, response_format="text")
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello from OpenAI!"
             assert result.tool_calls is None
 
     @pytest.mark.asyncio
-    async def test_generate_json_success(self, provider):
+    async def test_generate_json_success(self, model):
         """Test successful JSON generation"""
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content='{"status": "ok"}'))]
 
         with patch.object(
-            provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
+            model._client.client.chat.completions,
+            "create",
+            new=AsyncMock(return_value=mock_completion),
         ):
             messages = [UserMessage(content="Give me JSON")]
-            result = await provider.chat(messages, response_format="json")
+            result = await model.chat(messages, response_format="json")
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
 
     @pytest.mark.asyncio
-    async def test_generate_with_max_tokens(self, provider):
+    async def test_generate_with_max_tokens(self, model):
         """Test generation with max_tokens parameter"""
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Short response"))]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            result = await provider.chat(messages, response_format="text", max_tokens=50)
+            result = await model.chat(messages, response_format="text", max_tokens=50)
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Short response"
@@ -487,21 +506,21 @@ class TestOpenAIProvider:
             assert call_kwargs["max_tokens"] == 50
 
     @pytest.mark.asyncio
-    async def test_message_conversion(self, provider):
+    async def test_message_conversion(self, model):
         """Test that ChatMessages are converted correctly to OpenAI format"""
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [
                 SystemMessage(content="You are helpful"),
                 UserMessage(content="Hello"),
                 AssistantMessage(content="Hi!"),
             ]
 
-            await provider.chat(messages, response_format="text")
+            await model.chat(messages, response_format="text")
 
             # Verify messages were converted to dict format
             call_kwargs = mock_create.call_args.kwargs
@@ -514,61 +533,61 @@ class TestOpenAIProvider:
             assert chat_messages[2]["role"] == "assistant"
 
     @pytest.mark.asyncio
-    async def test_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
+    async def test_temperature_override(self, model):
+        """Test that per-call temperature overrides model temperature"""
+        # Model was created with temperature=0.7
+        assert model.temperature == 0.7
 
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await provider.chat(messages, temperature=0.1)
+            await model.chat(messages, temperature=0.1)
 
             # Verify the temperature passed to OpenAI
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["temperature"] == 0.1
 
-            # Call without override - should use instance temperature
-            await provider.chat(messages)
+            # Call without override - should use model temperature
+            await model.chat(messages)
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["temperature"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_temperature_none_not_sent(self):
+    async def test_temperature_none_not_sent(self, client):
         """Test that temperature is not sent to API when None"""
-        # Create provider without temperature (defaults to None)
-        provider = OpenAIProvider(
-            model="gpt-4o-mini",
-            api_key="sk-test-key",
+        # Create model without temperature (defaults to None)
+        model = Model(
+            client=client,
+            name="gpt-4o-mini",
         )
-        assert provider.temperature is None
+        assert model.temperature is None
 
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
 
             # Call without temperature - should not include it in request
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify temperature was NOT included in request
             call_kwargs = mock_create.call_args.kwargs
             assert "temperature" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_usage_tracking(self, provider):
-        """Test that usage statistics are tracked"""
+    async def test_usage_tracking(self, model):
+        """Test that usage statistics are tracked per-model"""
         # Check initial state
-        assert provider.get_usage() is None
+        assert model.get_usage() is None
 
         mock_completion = MagicMock()
         mock_message = MagicMock(content="Response")
@@ -582,13 +601,15 @@ class TestOpenAIProvider:
         mock_completion.usage = mock_usage
 
         with patch.object(
-            provider.client.chat.completions, "create", new=AsyncMock(return_value=mock_completion)
+            model._client.client.chat.completions,
+            "create",
+            new=AsyncMock(return_value=mock_completion),
         ):
             messages = [UserMessage(content="Test")]
-            await provider.chat(messages)
+            await model.chat(messages)
 
             # Verify usage was tracked
-            usage = provider.get_usage()
+            usage = model.get_usage()
             assert usage is not None
             assert isinstance(usage, Usage)
             assert usage.prompt_tokens == 15
@@ -596,7 +617,7 @@ class TestOpenAIProvider:
             assert usage.total_tokens == 40
 
     @pytest.mark.asyncio
-    async def test_json_schema_response_format(self, provider):
+    async def test_json_schema_response_format(self, model):
         """Test that Pydantic model is correctly converted to JSON Schema for OpenAI"""
         mock_completion = MagicMock()
         mock_completion.choices = [
@@ -605,10 +626,10 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(return_value=mock_completion)
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await provider.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, response_format=PersonInfo)
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -633,88 +654,7 @@ class TestOpenAIProvider:
             assert schema["properties"]["age"]["type"] == "integer"
 
     @pytest.mark.asyncio
-    async def test_json_schema_nested_pydantic_model(self, provider):
-        """Test that complex nested Pydantic models work correctly"""
-        mock_completion = MagicMock()
-        mock_completion.choices = [
-            MagicMock(
-                message=MagicMock(
-                    content=(
-                        '{"name": "Bob", "age": 25, "address": '
-                        '{"street": "123 Main St", "city": "NYC", "zip_code": "10001"}}'
-                    )
-                )
-            )
-        ]
-
-        mock_create = AsyncMock(return_value=mock_completion)
-
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
-            messages = [UserMessage(content="Give me person with address")]
-
-            result = await provider.chat(messages, response_format=PersonWithAddress)
-
-            assert isinstance(result, AssistantMessage)
-
-            # Verify the response_format parameter contains the nested JSON Schema
-            call_kwargs = mock_create.call_args.kwargs
-            assert "response_format" in call_kwargs
-            response_format = call_kwargs["response_format"]
-
-            # Verify OpenAI json_schema format structure
-            assert response_format["type"] == "json_schema"
-            assert response_format["json_schema"]["name"] == "PersonWithAddress"
-
-            schema = response_format["json_schema"]["schema"]
-            assert "properties" in schema
-
-            # Verify nested structure is present (either through $defs or inline)
-            # Pydantic v2 uses $defs for nested models
-            if "$defs" in schema:
-                assert "Address" in schema["$defs"]
-
-    @pytest.mark.asyncio
-    async def test_backward_compat_json_format(self, provider):
-        """Test that existing 'json' format still works (backward compatibility)"""
-        mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(content='{"status": "ok"}'))]
-
-        mock_create = AsyncMock(return_value=mock_completion)
-
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
-            messages = [UserMessage(content="Give me JSON")]
-
-            result = await provider.chat(messages, response_format="json")
-
-            assert isinstance(result, AssistantMessage)
-            assert '{"status": "ok"}' in result.content
-
-            # Verify response_format is set to json_object (not json_schema)
-            call_kwargs = mock_create.call_args.kwargs
-            assert call_kwargs["response_format"] == {"type": "json_object"}
-
-    @pytest.mark.asyncio
-    async def test_backward_compat_text_format(self, provider):
-        """Test that existing 'text' format still works (backward compatibility)"""
-        mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock(message=MagicMock(content="Plain text response"))]
-
-        mock_create = AsyncMock(return_value=mock_completion)
-
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
-            messages = [UserMessage(content="Give me text")]
-
-            result = await provider.chat(messages, response_format="text")
-
-            assert isinstance(result, AssistantMessage)
-            assert result.content == "Plain text response"
-
-            # Verify no response_format parameter is set for text
-            call_kwargs = mock_create.call_args.kwargs
-            assert "response_format" not in call_kwargs
-
-    @pytest.mark.asyncio
-    async def test_stream_success(self, provider):
+    async def test_stream_success(self, model):
         """Test successful streaming with multiple chunks"""
 
         async def mock_stream():
@@ -733,11 +673,11 @@ class TestOpenAIProvider:
 
         mock_create = AsyncMock(return_value=mock_stream())
 
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Say hello")]
 
             collected_chunks = []
-            async for chunk in provider.stream(messages):
+            async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
             # Verify we got the expected chunks
@@ -756,175 +696,173 @@ class TestOpenAIProvider:
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["stream"] is True
 
-    @pytest.mark.asyncio
-    async def test_stream_empty_chunks(self, provider):
-        """Test that empty chunks are handled (not yielded)"""
 
-        async def mock_stream():
-            """Mock async generator with empty chunks interspersed"""
-            chunks = [
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="Hello"), finish_reason=None)]
-                ),
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content=""), finish_reason=None)]
-                ),  # Empty content
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content=None), finish_reason=None)]
-                ),  # None content
-                MagicMock(choices=[]),  # No choices at all
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content=" there"), finish_reason="stop")]
-                ),
-            ]
-            for chunk in chunks:
-                yield chunk
+class TestCreateClientFactory:
+    """Tests for create_client() factory function"""
 
-        mock_create = AsyncMock(return_value=mock_stream())
-
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
-            messages = [UserMessage(content="Test")]
-
-            collected_chunks = []
-            async for chunk in provider.stream(messages):
-                collected_chunks.append(chunk)
-
-            # Only non-empty chunks should be yielded
-            assert len(collected_chunks) == 2
-            assert collected_chunks[0].content == "Hello"
-            assert collected_chunks[1].content == " there"
-
-    @pytest.mark.asyncio
-    async def test_stream_temperature_override(self, provider):
-        """Test that per-call temperature overrides instance temperature during streaming"""
-        # Provider was created with temperature=0.7
-        assert provider.temperature == 0.7
-
-        async def mock_stream():
-            """Empty mock stream for testing parameters"""
-            chunks = [
-                MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="Test"), finish_reason="stop")]
-                ),
-            ]
-            for chunk in chunks:
-                yield chunk
-
-        mock_create = AsyncMock(return_value=mock_stream())
-
-        with patch.object(provider.client.chat.completions, "create", new=mock_create):
-            messages = [UserMessage(content="Test")]
-
-            # Call with overridden temperature
-            async for _ in provider.stream(messages, temperature=0.2):
-                pass
-
-            # Verify the temperature passed to OpenAI
-            call_kwargs = mock_create.call_args.kwargs
-            assert call_kwargs["temperature"] == 0.2
-            assert call_kwargs["stream"] is True
-
-            # Reset mock for second call
-            mock_create.reset_mock()
-            mock_create.return_value = mock_stream()
-
-            # Call without override - should use instance temperature
-            async for _ in provider.stream(messages):
-                pass
-
-            call_kwargs = mock_create.call_args.kwargs
-            assert call_kwargs["temperature"] == 0.7
-
-
-class TestCreateProviderFactory:
-    """Tests for create_provider() factory function"""
-
-    def test_create_ollama_provider(self):
-        """Test creating an Ollama provider"""
-        config = ModelConfig(
-            name="qwen2.5:7b-instruct",
+    def test_create_ollama_client(self):
+        """Test creating an Ollama client"""
+        config = ClientConfig(
             provider=Provider.OLLAMA,
             base_url="http://localhost:11434/api/chat",
         )
 
-        provider = create_provider(config, timeout=60.0)
+        client = create_client(config)
 
-        assert isinstance(provider, OllamaProvider)
-        assert provider.model == "qwen2.5:7b-instruct"
-        assert provider.timeout == 60.0
+        assert isinstance(client, OllamaClient)
+        assert client.timeout == 60.0  # default timeout
 
-    def test_create_ollama_provider_with_default_url(self):
-        """Test creating Ollama provider with default URL"""
-        config = ModelConfig(
-            name="llama2",
+    def test_create_ollama_client_with_default_url(self):
+        """Test creating Ollama client with default URL"""
+        config = ClientConfig(
             provider=Provider.OLLAMA,
         )
 
-        provider = create_provider(config)
+        client = create_client(config)
 
-        assert isinstance(provider, OllamaProvider)
-        # Provider should use default host
-        assert provider.host == "http://localhost:11434"
+        assert isinstance(client, OllamaClient)
+        # Client should use default host
+        assert client.host == "http://localhost:11434"
 
-    def test_create_ollama_provider_with_trailing_slash(self):
+    def test_create_ollama_client_with_trailing_slash(self):
         """Test that trailing slashes are handled correctly"""
         # With trailing slash
-        config_with_slash = ModelConfig(
-            name="llama2",
+        config_with_slash = ClientConfig(
             provider=Provider.OLLAMA,
             base_url="http://localhost:11434/",
         )
-        provider_with_slash = create_provider(config_with_slash)
+        client_with_slash = create_client(config_with_slash)
 
         # Without trailing slash
-        config_without_slash = ModelConfig(
-            name="llama2",
+        config_without_slash = ClientConfig(
             provider=Provider.OLLAMA,
             base_url="http://localhost:11434",
         )
-        provider_without_slash = create_provider(config_without_slash)
+        client_without_slash = create_client(config_without_slash)
 
         # Both should produce the same host (trailing slash removed)
-        assert provider_with_slash.host == "http://localhost:11434"
-        assert provider_without_slash.host == "http://localhost:11434"
-        assert provider_with_slash.host == provider_without_slash.host
+        assert client_with_slash.host == "http://localhost:11434"
+        assert client_without_slash.host == "http://localhost:11434"
+        assert client_with_slash.host == client_without_slash.host
 
-    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
-    def test_create_openai_provider(self):
-        """Test creating an OpenAI provider"""
-        config = ModelConfig(
-            name="gpt-4o-mini",
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_create_openai_client(self):
+        """Test creating an OpenAI client"""
+        config = ClientConfig(
             provider=Provider.OPENAI,
             api_key="sk-test-key",
         )
 
-        provider = create_provider(config, timeout=30.0)
+        client = create_client(config)
 
-        assert isinstance(provider, OpenAIProvider)
-        assert provider.model == "gpt-4o-mini"
+        assert isinstance(client, OpenAIClient)
 
-    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI provider not installed")
-    def test_create_openai_provider_with_base_url(self):
-        """Test creating OpenAI provider with custom base URL"""
-        config = ModelConfig(
-            name="gpt-4",
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_create_openai_client_with_base_url(self):
+        """Test creating OpenAI client with custom base URL"""
+        config = ClientConfig(
             provider=Provider.OPENAI,
             api_key="sk-test-key",
             base_url="https://api.openrouter.ai/api/v1",
         )
 
-        provider = create_provider(config)
+        client = create_client(config)
 
-        assert isinstance(provider, OpenAIProvider)
-        assert provider.model == "gpt-4"
+        assert isinstance(client, OpenAIClient)
 
-    def test_create_provider_unsupported_type(self):
+    def test_create_client_unsupported_type(self):
         """Test that unsupported provider raises ValueError"""
         # Create a mock provider enum value
-        config = ModelConfig(
-            name="test-model",
+        config = ClientConfig(
             provider="unsupported",  # type: ignore
         )
 
         with pytest.raises(ValueError, match="Unsupported provider"):
-            create_provider(config)
+            create_client(config)
+
+
+class TestCreateModelFactory:
+    """Tests for create_model() factory function"""
+
+    def test_create_model_with_config(self):
+        """Test creating a Model from config"""
+        client = OllamaClient(host="http://localhost:11434")
+        config = ModelConfig(
+            name="llama3.1",
+            temperature=0.5,
+        )
+
+        model = create_model(client, config)
+
+        assert isinstance(model, Model)
+        assert model.name == "llama3.1"
+        assert model.temperature == 0.5
+
+    def test_create_model_minimal_config(self):
+        """Test creating a Model with minimal config"""
+        client = OllamaClient(host="http://localhost:11434")
+        config = ModelConfig(name="llama3.1")
+
+        model = create_model(client, config)
+
+        assert isinstance(model, Model)
+        assert model.name == "llama3.1"
+        assert model.temperature is None
+
+
+class TestMultipleModelsPerClient:
+    """Tests verifying multiple models can share a client"""
+
+    def test_multiple_models_share_client(self):
+        """Test that multiple models can use the same client"""
+        client = OllamaClient(host="http://localhost:11434")
+
+        model1 = Model(client, name="llama3.1", temperature=0.7)
+        model2 = Model(client, name="qwen2.5:7b-instruct", temperature=0.5)
+
+        # Both models share the same client
+        assert model1._client is model2._client
+        # But have different configurations
+        assert model1.name != model2.name
+        assert model1.temperature != model2.temperature
+
+    @pytest.mark.asyncio
+    async def test_multiple_models_independent_usage_tracking(self):
+        """Test that each model tracks its own usage independently"""
+        client = OllamaClient(host="http://localhost:11434")
+
+        model1 = Model(client, name="llama3.1")
+        model2 = Model(client, name="qwen2.5:7b-instruct")
+
+        # Both should start with no usage
+        assert model1.get_usage() is None
+        assert model2.get_usage() is None
+
+        # Mock response for model1
+        mock_response1 = MagicMock()
+        mock_response1.message.content = "Response from model1"
+        mock_response1.message.tool_calls = None
+        mock_response1.prompt_eval_count = 10
+        mock_response1.eval_count = 20
+
+        # Mock response for model2
+        mock_response2 = MagicMock()
+        mock_response2.message.content = "Response from model2"
+        mock_response2.message.tool_calls = None
+        mock_response2.prompt_eval_count = 30
+        mock_response2.eval_count = 40
+
+        with patch("ollama.AsyncClient.chat", new=AsyncMock(return_value=mock_response1)):
+            await model1.chat([UserMessage(content="Test 1")])
+
+        # Only model1 should have usage
+        assert model1.get_usage() is not None
+        assert model1.get_usage().prompt_tokens == 10
+        assert model2.get_usage() is None
+
+        with patch("ollama.AsyncClient.chat", new=AsyncMock(return_value=mock_response2)):
+            await model2.chat([UserMessage(content="Test 2")])
+
+        # Now both have usage, independently tracked
+        assert model1.get_usage().prompt_tokens == 10
+        assert model2.get_usage().prompt_tokens == 30

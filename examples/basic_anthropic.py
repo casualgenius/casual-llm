@@ -1,7 +1,7 @@
 """
 Basic Anthropic example using Claude models.
 
-This example demonstrates basic usage of the AnthropicProvider with
+This example demonstrates basic usage of the AnthropicClient + Model with
 text responses and JSON output.
 
 Requirements:
@@ -12,9 +12,8 @@ Requirements:
 import asyncio
 import os
 from casual_llm import (
-    create_provider,
-    ModelConfig,
-    Provider,
+    AnthropicClient,
+    Model,
     UserMessage,
     SystemMessage,
 )
@@ -36,15 +35,11 @@ async def basic_text_response():
     print("Basic Text Response Example")
     print("=" * 50)
 
-    # Create provider with model configuration
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
+    # Create Anthropic client (manages API connection)
+    client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
 
-    provider = create_provider(config)
+    # Create model (configure model name and parameters)
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     # Create messages with system and user messages
     messages = [
@@ -53,37 +48,29 @@ async def basic_text_response():
     ]
 
     print(f"Sending message to {ANTHROPIC_MODEL}...")
-    response = await provider.chat(messages, response_format="text")
+    response = await model.chat(messages, response_format="text")
 
     print(f"\nResponse:\n{response.content}")
 
     # Show usage statistics
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print("\nUsage:")
         print(f"  Prompt tokens: {usage.prompt_tokens}")
         print(f"  Completion tokens: {usage.completion_tokens}")
         print(f"  Total tokens: {usage.total_tokens}")
 
+    return client  # Return client for reuse
 
-async def json_response_example():
+
+async def json_response_example(client):
     """Example: Request JSON-formatted response from Claude."""
-    if not ANTHROPIC_API_KEY:
-        print("\nError: ANTHROPIC_API_KEY environment variable not set")
-        return
-
     print("\n" + "=" * 50)
     print("JSON Response Example")
     print("=" * 50)
 
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Reuse the same client for a different model configuration
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -94,22 +81,18 @@ async def json_response_example():
     ]
 
     print(f"Requesting JSON response from {ANTHROPIC_MODEL}...")
-    response = await provider.chat(messages, response_format="json")
+    response = await model.chat(messages, response_format="json")
 
     print(f"\nJSON Response:\n{response.content}")
 
     # Show usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"\nUsage: {usage.total_tokens} tokens")
 
 
-async def pydantic_model_example():
+async def pydantic_model_example(client):
     """Example: Use Pydantic model for structured output."""
-    if not ANTHROPIC_API_KEY:
-        print("\nError: ANTHROPIC_API_KEY environment variable not set")
-        return
-
     print("\n" + "=" * 50)
     print("Pydantic Model Example")
     print("=" * 50)
@@ -124,14 +107,8 @@ async def pydantic_model_example():
         occupation: str
         city: str
 
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Reuse the same client
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     messages = [
         UserMessage(
@@ -141,36 +118,26 @@ async def pydantic_model_example():
 
     print(f"Requesting structured output from {ANTHROPIC_MODEL}...")
     print("Using Pydantic model: Person(name, age, occupation, city)")
-    response = await provider.chat(messages, response_format=Person)
+    response = await model.chat(messages, response_format=Person)
 
     print(f"\nStructured Response:\n{response.content}")
 
     # Show usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"\nUsage: {usage.total_tokens} tokens")
 
 
-async def conversation_example():
+async def conversation_example(client):
     """Example: Multi-turn conversation with Claude."""
-    if not ANTHROPIC_API_KEY:
-        print("\nError: ANTHROPIC_API_KEY environment variable not set")
-        return
-
     print("\n" + "=" * 50)
     print("Multi-turn Conversation Example")
     print("=" * 50)
 
     from casual_llm import AssistantMessage
 
-    config = ModelConfig(
-        name=ANTHROPIC_MODEL,
-        provider=Provider.ANTHROPIC,
-        api_key=ANTHROPIC_API_KEY,
-        temperature=0.7,
-    )
-
-    provider = create_provider(config)
+    # Reuse the same client
+    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
 
     # First message
     messages = [
@@ -179,7 +146,7 @@ async def conversation_example():
     ]
 
     print("User: What is a Python list comprehension?")
-    response1 = await provider.chat(messages, response_format="text")
+    response1 = await model.chat(messages, response_format="text")
     print(f"\nClaude: {response1.content}")
 
     # Second message - continue the conversation
@@ -187,31 +154,64 @@ async def conversation_example():
     messages.append(UserMessage(content="Can you show me a simple example?"))
 
     print("\nUser: Can you show me a simple example?")
-    response2 = await provider.chat(messages, response_format="text")
+    response2 = await model.chat(messages, response_format="text")
     print(f"\nClaude: {response2.content}")
 
     # Show total usage
-    usage = provider.get_usage()
+    usage = model.get_usage()
     if usage:
         print(f"\nTotal usage: {usage.total_tokens} tokens")
+
+
+async def multi_model_example(client):
+    """Example: Multiple models using the same client."""
+    print("\n" + "=" * 50)
+    print("Multi-Model Example")
+    print("=" * 50)
+
+    # You can create multiple models from the same client
+    # This is efficient as the client connection is reused
+    print("You can create multiple Model instances from a single AnthropicClient!")
+    print()
+    print("# One client, multiple models:")
+    print("client = AnthropicClient(api_key=api_key)")
+    print("sonnet = Model(client, name='claude-3-5-sonnet-latest', temperature=0.7)")
+    print("haiku = Model(client, name='claude-3-haiku-20240307', temperature=0.5)")
+    print()
+    print("# Each model tracks its own usage:")
+    print("response1 = await sonnet.chat(messages)")
+    print("response2 = await haiku.chat(messages)")
+    print("sonnet.get_usage()  # Usage for sonnet model")
+    print("haiku.get_usage()   # Usage for haiku model")
 
 
 async def main():
     """Run all Anthropic examples."""
     print("casual-llm Anthropic (Claude) Examples")
-    print("This demonstrates basic usage of the AnthropicProvider.\n")
+    print("This demonstrates basic usage of the AnthropicClient + Model.\n")
+
+    if not ANTHROPIC_API_KEY:
+        print("Error: ANTHROPIC_API_KEY environment variable not set")
+        print("Set it with: export ANTHROPIC_API_KEY=your-api-key")
+        return
+
+    # Create a single client to reuse across examples
+    client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
 
     # Run basic text example
     await basic_text_response()
 
-    # Run JSON example
-    await json_response_example()
+    # Run JSON example (reusing client)
+    await json_response_example(client)
 
-    # Run Pydantic model example
-    await pydantic_model_example()
+    # Run Pydantic model example (reusing client)
+    await pydantic_model_example(client)
 
-    # Run conversation example
-    await conversation_example()
+    # Run conversation example (reusing client)
+    await conversation_example(client)
+
+    # Show multi-model pattern
+    await multi_model_example(client)
 
     print("\n" + "=" * 50)
     print("Anthropic examples complete!")

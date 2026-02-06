@@ -1,107 +1,140 @@
 """
-LLM provider implementations.
+LLM client implementations.
 
-This module contains provider-specific implementations of the LLMProvider protocol.
+This module contains client-specific implementations of the LLMClient protocol.
 """
 
-from casual_llm.config import ModelConfig, Provider
-from casual_llm.providers.base import LLMProvider
-from casual_llm.providers.ollama import OllamaProvider
+from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.model import Model
+from casual_llm.providers.base import LLMClient
+from casual_llm.providers.ollama import OllamaClient
 
 try:
-    from casual_llm.providers.openai import OpenAIProvider
+    from casual_llm.providers.openai import OpenAIClient
 except ImportError:
-    OpenAIProvider = None  # type: ignore
+    OpenAIClient = None  # type: ignore
 
 try:
-    from casual_llm.providers.anthropic import AnthropicProvider
+    from casual_llm.providers.anthropic import AnthropicClient
 except ImportError:
-    AnthropicProvider = None  # type: ignore
+    AnthropicClient = None  # type: ignore
 
 
-def create_provider(
-    model_config: ModelConfig,
-    timeout: float = 60.0,
-) -> LLMProvider:
+def create_client(
+    config: ClientConfig,
+) -> LLMClient:
     """
-    Factory function to create an LLM provider from a ModelConfig.
+    Factory function to create an LLM client from a ClientConfig.
 
     Args:
-        model_config: Model configuration (name, provider, base_url, api_key, temperature)
-        timeout: HTTP timeout in seconds (default: 60.0)
+        config: Client configuration (provider, base_url, api_key, timeout)
 
     Returns:
-        Configured LLM provider (OllamaProvider, OpenAIProvider, or AnthropicProvider)
+        Configured LLM client (OllamaClient, OpenAIClient, or AnthropicClient)
 
     Raises:
         ValueError: If provider type is not supported
         ImportError: If required package is not installed for the provider
 
     Examples:
-        >>> from casual_llm import ModelConfig, Provider, create_provider
-        >>> config = ModelConfig(
-        ...     name="gpt-4o-mini",
+        >>> from casual_llm import ClientConfig, Provider, create_client, Model
+        >>>
+        >>> # Create OpenAI client
+        >>> config = ClientConfig(
         ...     provider=Provider.OPENAI,
         ...     api_key="sk-..."
         ... )
-        >>> provider = create_provider(config)
-
-        >>> config = ModelConfig(
-        ...     name="qwen2.5:7b-instruct",
-        ...     provider=Provider.OLLAMA,
-        ...     base_url="http://localhost:11434"
-        ... )
-        >>> provider = create_provider(config)
+        >>> client = create_client(config)
+        >>>
+        >>> # Create models using the client
+        >>> gpt4 = Model(client, name="gpt-4")
+        >>> gpt35 = Model(client, name="gpt-3.5-turbo")
     """
-    if model_config.provider == Provider.OLLAMA:
-        host = model_config.base_url or "http://localhost:11434"
-        return OllamaProvider(
-            model=model_config.name,
+    if config.provider == Provider.OLLAMA:
+        host = config.base_url or "http://localhost:11434"
+        return OllamaClient(
             host=host,
-            temperature=model_config.temperature,
-            timeout=timeout,
+            timeout=config.timeout,
         )
 
-    elif model_config.provider == Provider.OPENAI:
-        if OpenAIProvider is None:
+    elif config.provider == Provider.OPENAI:
+        if OpenAIClient is None:
             raise ImportError(
-                "OpenAI provider requires the 'openai' package. "
+                "OpenAI client requires the 'openai' package. "
                 "Install it with: pip install casual-llm[openai]"
             )
 
-        return OpenAIProvider(
-            model=model_config.name,
-            api_key=model_config.api_key,
-            base_url=model_config.base_url,
-            temperature=model_config.temperature,
-            timeout=timeout,
+        return OpenAIClient(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            timeout=config.timeout,
+            extra_kwargs=config.extra_kwargs or None,
         )
 
-    elif model_config.provider == Provider.ANTHROPIC:
-        if AnthropicProvider is None:
+    elif config.provider == Provider.ANTHROPIC:
+        if AnthropicClient is None:
             raise ImportError(
-                "Anthropic provider requires the 'anthropic' package. "
+                "Anthropic client requires the 'anthropic' package. "
                 "Install it with: pip install casual-llm[anthropic]"
             )
 
-        return AnthropicProvider(
-            model=model_config.name,
-            api_key=model_config.api_key,
-            base_url=model_config.base_url,
-            temperature=model_config.temperature,
-            timeout=timeout,
+        return AnthropicClient(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            timeout=config.timeout,
+            extra_kwargs=config.extra_kwargs or None,
         )
 
     else:
-        raise ValueError(f"Unsupported provider: {model_config.provider}")
+        raise ValueError(f"Unsupported provider: {config.provider}")
+
+
+def create_model(
+    client: LLMClient,
+    config: ModelConfig,
+) -> Model:
+    """
+    Factory function to create a Model from a client and ModelConfig.
+
+    Args:
+        client: The LLM client to use
+        config: Model configuration (name, temperature, extra_kwargs)
+
+    Returns:
+        Configured Model instance
+
+    Examples:
+        >>> from casual_llm import ClientConfig, ModelConfig, Provider
+        >>> from casual_llm import create_client, create_model
+        >>>
+        >>> # Create client
+        >>> client_config = ClientConfig(provider=Provider.OPENAI, api_key="sk-...")
+        >>> client = create_client(client_config)
+        >>>
+        >>> # Create model
+        >>> model_config = ModelConfig(name="gpt-4", temperature=0.7)
+        >>> model = create_model(client, model_config)
+        >>>
+        >>> # Use model
+        >>> response = await model.chat([UserMessage(content="Hello")])
+    """
+    return Model(
+        client=client,
+        name=config.name,
+        temperature=config.temperature,
+        extra_kwargs=config.extra_kwargs or None,
+    )
 
 
 __all__ = [
-    "LLMProvider",
+    "LLMClient",
+    "ClientConfig",
     "ModelConfig",
+    "Model",
     "Provider",
-    "OllamaProvider",
-    "OpenAIProvider",
-    "AnthropicProvider",
-    "create_provider",
+    "OllamaClient",
+    "OpenAIClient",
+    "AnthropicClient",
+    "create_client",
+    "create_model",
 ]

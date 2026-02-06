@@ -1,5 +1,5 @@
 """
-Example demonstrating tool calling with Ollama or OpenAI providers.
+Example demonstrating tool calling with Ollama or OpenAI clients.
 
 Shows how to:
 1. Define tools using the Tool model
@@ -17,12 +17,16 @@ from casual_llm import (
     UserMessage,
     ToolResultMessage,
     SystemMessage,
-    OllamaProvider,
+    OllamaClient,
+    Model,
 )
 
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.1:8b"
-provider = OllamaProvider(model=OLLAMA_MODEL, host=OLLAMA_HOST)
+
+# Create client and model
+client = OllamaClient(host=OLLAMA_HOST)
+model = Model(client, name=OLLAMA_MODEL)
 
 
 # Define example tools
@@ -114,8 +118,8 @@ async def run_tool_calling_example():
     print("=" * 70)
     print()
 
-    # Initialize provider (using Ollama - replace with OpenAIProvider as needed)
-    print("Initializing Ollama provider...")
+    # Initialize model (using Ollama - replace with OpenAIClient as needed)
+    print("Initializing Ollama model...")
     print()
 
     # Define tools available to the LLM
@@ -139,7 +143,7 @@ async def run_tool_calling_example():
 
     # Initial request with tools
     print("Sending request to LLM with tools...")
-    response = await provider.chat(messages, tools=tools)
+    response = await model.chat(messages, tools=tools)
     print()
 
     # Check if LLM wants to call tools
@@ -177,7 +181,7 @@ async def run_tool_calling_example():
 
         # Send tool results back to LLM for final response
         print("Sending tool results back to LLM...")
-        final_response = await provider.chat(messages, tools=tools)
+        final_response = await model.chat(messages, tools=tools)
         print()
 
         print("Assistant (final response):")
@@ -216,7 +220,7 @@ async def run_simple_no_tools_example():
     print()
 
     # Call without tools - returns AssistantMessage
-    response = await provider.chat(messages)
+    response = await model.chat(messages)
 
     print("Assistant:")
     print(response.content)
@@ -240,9 +244,10 @@ async def main():
         print("  1. Ollama is not running")
         print("  2. The model doesn't support tool calling")
         print("  3. Network issues")
-        print("\nFor OpenAI, replace OllamaProvider with OpenAIProvider:")
-        print("  from casual_llm import OpenAIProvider")
-        print("  provider = OpenAIProvider(model='gpt-4o-mini', api_key='...')")
+        print("\nFor OpenAI, replace OllamaClient with OpenAIClient:")
+        print("  from casual_llm import OpenAIClient, Model")
+        print("  client = OpenAIClient(api_key='...')")
+        print("  model = Model(client, name='gpt-4o-mini')")
 
 
 if __name__ == "__main__":
