@@ -140,7 +140,9 @@ class OllamaClient:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
         )
-        logger.debug("Usage: %d prompt tokens, %d completion tokens", prompt_tokens, completion_tokens)
+        logger.debug(
+            "Usage: %d prompt tokens, %d completion tokens", prompt_tokens, completion_tokens
+        )
 
         # Parse tool calls if present
         tool_calls = None
