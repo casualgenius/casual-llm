@@ -26,7 +26,9 @@ class ClientConfig:
     Provides a unified way to configure client connections across different providers.
 
     Attributes:
-        provider: Provider type (OPENAI, OLLAMA, or ANTHROPIC)
+        provider: Provider type - accepts Provider enum or string (e.g., "openai", "OpenAI")
+        name: Optional client name for automatic API key lookup from env vars.
+              If set and no api_key is provided, checks {NAME.upper()}_API_KEY env var.
         base_url: Optional custom API endpoint
         api_key: Optional API key (for OpenAI/Anthropic providers)
         timeout: HTTP request timeout in seconds (default: 60.0)
@@ -35,31 +37,41 @@ class ClientConfig:
     Examples:
         >>> from casual_llm import ClientConfig, Provider
         >>>
-        >>> # OpenAI configuration
+        >>> # Using Provider enum
         >>> config = ClientConfig(
         ...     provider=Provider.OPENAI,
         ...     api_key="sk-..."
         ... )
         >>>
-        >>> # Ollama configuration
-        >>> config = ClientConfig(
-        ...     provider=Provider.OLLAMA,
-        ...     base_url="http://localhost:11434"
-        ... )
+        >>> # Using string (convenient for JSON configs)
+        >>> config = ClientConfig(provider="openai", api_key="sk-...")
         >>>
-        >>> # OpenRouter configuration (OpenAI-compatible)
+        >>> # With name for automatic API key lookup
         >>> config = ClientConfig(
-        ...     provider=Provider.OPENAI,
-        ...     api_key="sk-or-...",
+        ...     name="openrouter",
+        ...     provider="openai",
         ...     base_url="https://openrouter.ai/api/v1"
         ... )
+        >>> # Will check OPENROUTER_API_KEY env var automatically
     """
 
-    provider: Provider
+    provider: Provider | str
+    name: str | None = None
     base_url: str | None = None
     api_key: str | None = None
     timeout: float = 60.0
     extra_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Coerce string provider to Provider enum."""
+        if isinstance(self.provider, str):
+            try:
+                self.provider = Provider(self.provider.lower())
+            except ValueError:
+                valid = ", ".join(p.value for p in Provider)
+                raise ValueError(
+                    f"Unknown provider: {self.provider!r}. " f"Valid providers: {valid}"
+                ) from None
 
 
 @dataclass
