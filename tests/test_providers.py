@@ -2,11 +2,14 @@
 Tests for LLM client and Model implementations.
 """
 
+import os
+
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
 from casual_llm.config import ClientConfig, ModelConfig, Provider
-from casual_llm.providers import OllamaClient, create_client, create_model
+from casual_llm.providers import OllamaClient
+from casual_llm.factory import create_client, create_model
 from casual_llm.model import Model
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage, StreamChunk
 from casual_llm.usage import Usage
@@ -771,14 +774,18 @@ class TestCreateClientFactory:
         assert isinstance(client, OpenAIClient)
 
     def test_create_client_unsupported_type(self):
-        """Test that unsupported provider raises ValueError"""
-        # Create a mock provider enum value
-        config = ClientConfig(
-            provider="unsupported",  # type: ignore
-        )
+        """Test that unsupported provider string raises ValueError at config creation"""
+        with pytest.raises(ValueError, match="Unknown provider"):
+            ClientConfig(provider="unsupported")
 
-        with pytest.raises(ValueError, match="Unsupported provider"):
-            create_client(config)
+    def test_create_client_with_string_provider(self):
+        """Test create_client works with string provider in ClientConfig"""
+        config = ClientConfig(
+            provider="ollama",
+            base_url="http://localhost:11434",
+        )
+        client = create_client(config)
+        assert isinstance(client, OllamaClient)
 
 
 class TestCreateModelFactory:
@@ -866,3 +873,135 @@ class TestMultipleModelsPerClient:
         # Now both have usage, independently tracked
         assert model1.get_usage().prompt_tokens == 10
         assert model2.get_usage().prompt_tokens == 30
+
+
+class TestClientConfigProviderCoercion:
+    """Tests for ClientConfig provider string coercion"""
+
+    def test_string_coercion_openai(self):
+        """Test that string 'openai' is coerced to Provider.OPENAI"""
+        config = ClientConfig(provider="openai")
+        assert config.provider == Provider.OPENAI
+        assert isinstance(config.provider, Provider)
+
+    def test_string_coercion_ollama(self):
+        """Test that string 'ollama' is coerced to Provider.OLLAMA"""
+        config = ClientConfig(provider="ollama")
+        assert config.provider == Provider.OLLAMA
+
+    def test_string_coercion_anthropic(self):
+        """Test that string 'anthropic' is coerced to Provider.ANTHROPIC"""
+        config = ClientConfig(provider="anthropic")
+        assert config.provider == Provider.ANTHROPIC
+
+    def test_enum_still_works(self):
+        """Test that passing Provider enum directly still works"""
+        config = ClientConfig(provider=Provider.OPENAI)
+        assert config.provider == Provider.OPENAI
+
+    def test_invalid_string_raises(self):
+        """Test that invalid provider string raises ValueError"""
+        with pytest.raises(ValueError, match="Unknown provider"):
+            ClientConfig(provider="invalid_provider")
+
+    def test_case_sensitive(self):
+        """Test that provider strings are case-sensitive (enum values are lowercase)"""
+        with pytest.raises(ValueError, match="Unknown provider"):
+            ClientConfig(provider="OPENAI")
+
+    def test_name_field_default_none(self):
+        """Test that name defaults to None"""
+        config = ClientConfig(provider="openai")
+        assert config.name is None
+
+    def test_name_field_set(self):
+        """Test setting name field"""
+        config = ClientConfig(name="openrouter", provider="openai")
+        assert config.name == "openrouter"
+
+
+class TestApiKeyResolution:
+    """Tests for API key resolution in create_client"""
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_explicit_api_key_wins(self):
+        """Test that explicit api_key takes priority over env var"""
+        config = ClientConfig(
+            name="test",
+            provider="openai",
+            api_key="explicit-key",
+        )
+
+        with patch.dict(os.environ, {"TEST_API_KEY": "env-key"}):
+            client = create_client(config)
+            assert isinstance(client, OpenAIClient)
+            # The explicit key should have been used
+            assert client.client.api_key == "explicit-key"
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_name_based_env_var_lookup(self):
+        """Test that {NAME}_API_KEY env var is used when no explicit key"""
+        config = ClientConfig(
+            name="openrouter",
+            provider="openai",
+        )
+
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "env-key"}, clear=False):
+            client = create_client(config)
+            assert isinstance(client, OpenAIClient)
+            assert client.client.api_key == "env-key"
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_no_name_no_key_passes_none(self):
+        """Test that None is passed when no key and no name"""
+        config = ClientConfig(provider="openai")
+
+        with patch("casual_llm.factory.OpenAIClient") as MockClient:
+            create_client(config)
+            call_kwargs = MockClient.call_args.kwargs
+            assert call_kwargs["api_key"] is None
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_name_env_var_not_found_passes_none(self):
+        """Test that None is passed when name is set but env var doesn't exist"""
+        config = ClientConfig(
+            name="nonexistent",
+            provider="openai",
+        )
+
+        # Ensure the env var doesn't exist
+        env = os.environ.copy()
+        env.pop("NONEXISTENT_API_KEY", None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch("casual_llm.factory.OpenAIClient") as MockClient:
+                create_client(config)
+                call_kwargs = MockClient.call_args.kwargs
+                assert call_kwargs["api_key"] is None
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_name_hyphen_sanitized(self):
+        """Test that hyphens in name are replaced with underscores for env var"""
+        config = ClientConfig(
+            name="open-router",
+            provider="openai",
+        )
+
+        with patch.dict(os.environ, {"OPEN_ROUTER_API_KEY": "found-key"}, clear=False):
+            client = create_client(config)
+            assert isinstance(client, OpenAIClient)
+            assert client.client.api_key == "found-key"
+
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_name_uppercased_for_env_var(self):
+        """Test that name is uppercased for env var lookup"""
+        config = ClientConfig(
+            name="myService",
+            provider="openai",
+        )
+
+        with patch.dict(os.environ, {"MYSERVICE_API_KEY": "found-key"}, clear=False):
+            client = create_client(config)
+            assert isinstance(client, OpenAIClient)
+            assert client.client.api_key == "found-key"
+
+

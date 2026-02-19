@@ -24,7 +24,7 @@ Example usage:
     >>> print(f"Used {gpt4.get_usage().total_tokens} tokens")
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 # Configuration
 from casual_llm.config import ClientConfig, ModelConfig, Provider
@@ -35,9 +35,10 @@ from casual_llm.providers import (
     OllamaClient,
     OpenAIClient,
     AnthropicClient,
-    create_client,
-    create_model,
 )
+
+# Factory functions
+from casual_llm.factory import create_client, create_model
 
 # Model class
 from casual_llm.model import Model

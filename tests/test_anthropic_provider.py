@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
 from casual_llm.config import ClientConfig, ModelConfig, Provider
-from casual_llm.providers import create_client, create_model
+from casual_llm.factory import create_client, create_model
 from casual_llm.model import Model
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage, StreamChunk
 from casual_llm.usage import Usage
