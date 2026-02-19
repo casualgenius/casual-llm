@@ -904,10 +904,16 @@ class TestClientConfigProviderCoercion:
         with pytest.raises(ValueError, match="Unknown provider"):
             ClientConfig(provider="invalid_provider")
 
-    def test_case_sensitive(self):
-        """Test that provider strings are case-sensitive (enum values are lowercase)"""
-        with pytest.raises(ValueError, match="Unknown provider"):
-            ClientConfig(provider="OPENAI")
+    def test_case_insensitive(self):
+        """Test that provider strings are case-insensitive"""
+        config = ClientConfig(provider="OPENAI")
+        assert config.provider == Provider.OPENAI
+
+        config2 = ClientConfig(provider="Ollama")
+        assert config2.provider == Provider.OLLAMA
+
+        config3 = ClientConfig(provider="Anthropic")
+        assert config3.provider == Provider.ANTHROPIC
 
     def test_name_field_default_none(self):
         """Test that name defaults to None"""
@@ -1004,4 +1010,15 @@ class TestApiKeyResolution:
             assert isinstance(client, OpenAIClient)
             assert client.client.api_key == "found-key"
 
+    @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
+    def test_name_dot_sanitized(self):
+        """Test that dots in name are replaced with underscores for env var"""
+        config = ClientConfig(
+            name="my.service",
+            provider="openai",
+        )
 
+        with patch.dict(os.environ, {"MY_SERVICE_API_KEY": "dot-key"}, clear=False):
+            client = create_client(config)
+            assert isinstance(client, OpenAIClient)
+            assert client.client.api_key == "dot-key"

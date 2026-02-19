@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-02-19
+
+### Added
+- **`ClientConfig.name` field**: Optional client name for automatic API key lookup from environment variables. When set and no explicit `api_key` is provided, checks `{NAME.upper()}_API_KEY` env var automatically.
+- **String provider support**: `ClientConfig.provider` now accepts plain strings (e.g., `"openai"`) in addition to the `Provider` enum, with case-insensitive matching.
+
+### Changed
+- **Factory functions moved**: `create_client()` and `create_model()` moved from `casual_llm.providers` to `casual_llm.factory`. Top-level imports (`from casual_llm import create_client, create_model`) are unchanged. Direct imports from `casual_llm.providers` will need updating.
+
+## [0.5.0] - 2026-02-06
+
+### Breaking Changes
+
+Providers are split to Client and Model, allowing for easier configuration of multiple models on the same provider.
+
+See the [Migration Guide](MIGRATION-0.5.0.md) for details.
 
 ## [0.4.3] - 2024-01-28
 

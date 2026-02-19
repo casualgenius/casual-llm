@@ -26,7 +26,7 @@ class ClientConfig:
     Provides a unified way to configure client connections across different providers.
 
     Attributes:
-        provider: Provider type - accepts Provider enum or string (e.g., "openai")
+        provider: Provider type - accepts Provider enum or string (e.g., "openai", "OpenAI")
         name: Optional client name for automatic API key lookup from env vars.
               If set and no api_key is provided, checks {NAME.upper()}_API_KEY env var.
         base_url: Optional custom API endpoint
@@ -66,7 +66,7 @@ class ClientConfig:
         """Coerce string provider to Provider enum."""
         if isinstance(self.provider, str):
             try:
-                self.provider = Provider(self.provider)
+                self.provider = Provider(self.provider.lower())
             except ValueError:
                 valid = ", ".join(p.value for p in Provider)
                 raise ValueError(

@@ -47,7 +47,7 @@ def _resolve_api_key(config: ClientConfig) -> str | None:
         return config.api_key
 
     if config.name:
-        env_var = f"{config.name.upper().replace('-', '_')}_API_KEY"
+        env_var = f"{config.name.upper().replace('-', '_').replace('.', '_')}_API_KEY"
         env_key = os.environ.get(env_var)
         if env_key:
             logger.debug("Found API key from env var %s", env_var)
