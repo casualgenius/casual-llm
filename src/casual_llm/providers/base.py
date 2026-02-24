@@ -7,12 +7,10 @@ using standard OpenAI-compatible message formats.
 
 from __future__ import annotations
 
-from typing import Protocol, Literal, AsyncIterator
+from typing import Protocol, AsyncIterator
 
-from pydantic import BaseModel
-
+from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
-from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 
 
@@ -48,10 +46,7 @@ class LLMClient(Protocol):
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> tuple[AssistantMessage, Usage | None]:
         """
         Generate a chat response from the LLM.
@@ -62,11 +57,7 @@ class LLMClient(Protocol):
         Args:
             model: The model identifier to use (e.g., "gpt-4", "llama3.1")
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format. Can be "json", "text", or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Returns:
             Tuple of (AssistantMessage, Usage or None)
@@ -80,10 +71,7 @@ class LLMClient(Protocol):
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> AsyncIterator[StreamChunk]:
         """
         Stream a chat response from the LLM.
@@ -94,11 +82,7 @@ class LLMClient(Protocol):
         Args:
             model: The model identifier to use (e.g., "gpt-4", "llama3.1")
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format. Can be "json", "text", or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Yields:
             StreamChunk objects containing content fragments as tokens are generated.

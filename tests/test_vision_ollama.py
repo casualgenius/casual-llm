@@ -9,6 +9,7 @@ from casual_llm.messages import (
     TextContent,
     ImageContent,
 )
+from casual_llm.config import ChatOptions
 from casual_llm.message_converters.ollama import (
     _convert_image_to_ollama,
     _convert_user_content_to_ollama,
@@ -340,7 +341,7 @@ class TestOllamaClientVision:
     @pytest.fixture
     def model(self, client):
         """Create a Model instance for testing with llava."""
-        return Model(client, name="llava", temperature=0.7)
+        return Model(client, name="llava", default_options=ChatOptions(temperature=0.7))
 
     @pytest.mark.asyncio
     async def test_chat_with_base64_image(self, client, model):

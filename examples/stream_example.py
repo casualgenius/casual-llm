@@ -12,6 +12,7 @@ Requirements:
 import asyncio
 import os
 from casual_llm import (
+    ChatOptions,
     OpenAIClient,
     OllamaClient,
     Model,
@@ -39,7 +40,7 @@ async def openai_stream_example():
 
     # Create client and model
     client = OpenAIClient(api_key=OPENAI_API_KEY)
-    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
+    model = Model(client, name=OPENAI_MODEL, default_options=ChatOptions(temperature=0.7))
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -50,7 +51,7 @@ async def openai_stream_example():
     print("\nResponse:")
 
     # Stream the response
-    async for chunk in model.stream(messages, response_format="text"):
+    async for chunk in model.stream(messages, ChatOptions(response_format="text")):
         if chunk.content:
             print(chunk.content, end="", flush=True)
 
@@ -70,7 +71,7 @@ async def ollama_stream_example():
 
     # Create client and model
     client = OllamaClient(host=OLLAMA_ENDPOINT)
-    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
+    model = Model(client, name=OLLAMA_MODEL, default_options=ChatOptions(temperature=0.7))
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -82,7 +83,7 @@ async def ollama_stream_example():
 
     try:
         # Stream the response
-        async for chunk in model.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, ChatOptions(response_format="text")):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
 
@@ -106,7 +107,7 @@ async def ollama_stream_conversation_example():
 
     # Create client and model
     client = OllamaClient(host=OLLAMA_ENDPOINT)
-    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
+    model = Model(client, name=OLLAMA_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # First turn
     messages = [
@@ -119,7 +120,7 @@ async def ollama_stream_conversation_example():
 
     try:
         response_text = ""
-        async for chunk in model.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, ChatOptions(response_format="text")):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
                 response_text += chunk.content
@@ -135,7 +136,7 @@ async def ollama_stream_conversation_example():
         print("User: Can you show me a simple example?")
         print(f"\n{OLLAMA_MODEL}: ", end="", flush=True)
 
-        async for chunk in model.stream(messages, response_format="text"):
+        async for chunk in model.stream(messages, ChatOptions(response_format="text")):
             if chunk.content:
                 print(chunk.content, end="", flush=True)
 

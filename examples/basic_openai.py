@@ -9,7 +9,7 @@ Requirements:
 
 import asyncio
 import os
-from casual_llm import OpenAIClient, Model, UserMessage, SystemMessage
+from casual_llm import ChatOptions, OpenAIClient, Model, UserMessage, SystemMessage
 
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
@@ -25,7 +25,7 @@ async def main():
     )
 
     # Create model (configure model name and parameters)
-    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
+    model = Model(client, name=OPENAI_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create conversation with system message
     messages = [
@@ -35,7 +35,7 @@ async def main():
 
     # Generate response
     print("Generating response...")
-    response = await model.chat(messages, response_format="text")
+    response = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"Response:\n{response.content}")
 
     # Check usage statistics
@@ -52,7 +52,7 @@ async def main():
         UserMessage(content="List 3 programming languages as JSON with their year of creation.")
     ]
 
-    json_response = await model.chat(json_messages, response_format="json")
+    json_response = await model.chat(json_messages, ChatOptions(response_format="json"))
     print(f"JSON Response: {json_response.content}")
 
     # Check usage statistics for JSON response
@@ -66,10 +66,10 @@ async def main():
     # Example: Multiple models using the same client
     print("\n--- Multi-Model Example ---")
     # You can create multiple models using the same client connection
-    # gpt4 = Model(client, name="gpt-4", temperature=0.7)
-    # gpt35 = Model(client, name="gpt-3.5-turbo", temperature=0.5)
+    # gpt4 = Model(client, name="gpt-4", default_options=ChatOptions(temperature=0.7))
+    # gpt35 = Model(client, name="gpt-3.5-turbo", default_options=ChatOptions(temperature=0.5))
     print("You can create multiple Model instances from a single OpenAIClient!")
-    print("Example: Model(client, name='gpt-4', temperature=0.7)")
+    print("Example: Model(client, name='gpt-4', default_options=ChatOptions(temperature=0.7))")
 
 
 if __name__ == "__main__":

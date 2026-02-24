@@ -7,7 +7,7 @@ import os
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
-from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.config import ChatOptions, ClientConfig, ModelConfig, Provider
 from casual_llm.providers import OllamaClient
 from casual_llm.factory import create_client, create_model
 from casual_llm.model import Model
@@ -65,7 +65,7 @@ class TestOllamaClient:
         return Model(
             client=client,
             name="qwen2.5:7b-instruct",
-            temperature=0.7,
+            default_options=ChatOptions(temperature=0.7),
         )
 
     @pytest.mark.asyncio
@@ -80,7 +80,7 @@ class TestOllamaClient:
                 UserMessage(content="Hello"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello, I'm a test response!"
@@ -98,7 +98,7 @@ class TestOllamaClient:
                 UserMessage(content="Give me JSON"),
             ]
 
-            result = await model.chat(messages, response_format="json")
+            result = await model.chat(messages, ChatOptions(response_format="json"))
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "test", "value": 42}' in result.content
@@ -120,7 +120,7 @@ class TestOllamaClient:
                 UserMessage(content="How are you?"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Got it!"
@@ -141,7 +141,7 @@ class TestOllamaClient:
                 AssistantMessage(content="Response"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Handled!"
@@ -150,7 +150,7 @@ class TestOllamaClient:
     async def test_temperature_override(self, model):
         """Test that per-call temperature overrides model default temperature"""
         # Model was created with temperature=0.7
-        assert model.temperature == 0.7
+        assert model.default_options.temperature == 0.7
 
         mock_response = MagicMock()
         mock_response.message.content = "Response"
@@ -162,7 +162,7 @@ class TestOllamaClient:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await model.chat(messages, temperature=0.1)
+            await model.chat(messages, ChatOptions(temperature=0.1))
 
             # Verify the temperature passed to Ollama
             call_kwargs = mock_chat.call_args.kwargs
@@ -181,7 +181,7 @@ class TestOllamaClient:
             client=client,
             name="test-model",
         )
-        assert model.temperature is None
+        assert model.default_options is None
 
         mock_response = MagicMock()
         mock_response.message.content = "Response"
@@ -236,7 +236,7 @@ class TestOllamaClient:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await model.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, ChatOptions(response_format=PersonInfo))
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -271,7 +271,7 @@ class TestOllamaClient:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me person with address")]
 
-            result = await model.chat(messages, response_format=PersonWithAddress)
+            result = await model.chat(messages, ChatOptions(response_format=PersonWithAddress))
 
             assert isinstance(result, AssistantMessage)
 
@@ -301,7 +301,7 @@ class TestOllamaClient:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me JSON")]
 
-            result = await model.chat(messages, response_format="json")
+            result = await model.chat(messages, ChatOptions(response_format="json"))
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
@@ -322,7 +322,7 @@ class TestOllamaClient:
         with patch("ollama.AsyncClient.chat", new=mock_chat):
             messages = [UserMessage(content="Give me text")]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Plain text response"
@@ -396,7 +396,7 @@ class TestOllamaClient:
     async def test_stream_temperature_override(self, model):
         """Test that per-call temperature overrides model temperature during streaming"""
         # Model was created with temperature=0.7
-        assert model.temperature == 0.7
+        assert model.default_options.temperature == 0.7
 
         async def mock_stream():
             """Empty mock stream for testing parameters"""
@@ -412,7 +412,7 @@ class TestOllamaClient:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            async for _ in model.stream(messages, temperature=0.2):
+            async for _ in model.stream(messages, ChatOptions(temperature=0.2)):
                 pass
 
             # Verify the temperature passed to Ollama
@@ -430,6 +430,26 @@ class TestOllamaClient:
 
             call_kwargs = mock_chat.call_args.kwargs
             assert call_kwargs["options"]["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_extra_on_chat_options(self, client):
+        """Test that extra dict on ChatOptions is passed to the API"""
+        model = Model(client=client, name="qwen2.5:7b-instruct")
+
+        mock_response = MagicMock()
+        mock_response.message.content = "Response"
+        mock_response.message.tool_calls = None
+
+        mock_chat = AsyncMock(return_value=mock_response)
+
+        with patch("ollama.AsyncClient.chat", new=mock_chat):
+            messages = [UserMessage(content="Test")]
+            await model.chat(messages, ChatOptions(extra={"keep_alive": "10m"}))
+
+            # Verify extra kwargs were passed through to the API call
+            call_kwargs = mock_chat.call_args.kwargs
+            assert "keep_alive" in call_kwargs
+            assert call_kwargs["keep_alive"] == "10m"
 
 
 @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI client not installed")
@@ -449,7 +469,7 @@ class TestOpenAIClient:
         return Model(
             client=client,
             name="gpt-4o-mini",
-            temperature=0.7,
+            default_options=ChatOptions(temperature=0.7),
         )
 
     @pytest.mark.asyncio
@@ -467,7 +487,7 @@ class TestOpenAIClient:
             new=AsyncMock(return_value=mock_completion),
         ):
             messages = [UserMessage(content="Hello")]
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello from OpenAI!"
@@ -485,7 +505,7 @@ class TestOpenAIClient:
             new=AsyncMock(return_value=mock_completion),
         ):
             messages = [UserMessage(content="Give me JSON")]
-            result = await model.chat(messages, response_format="json")
+            result = await model.chat(messages, ChatOptions(response_format="json"))
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
@@ -500,7 +520,7 @@ class TestOpenAIClient:
 
         with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            result = await model.chat(messages, response_format="text", max_tokens=50)
+            result = await model.chat(messages, ChatOptions(response_format="text", max_tokens=50))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Short response"
@@ -523,7 +543,7 @@ class TestOpenAIClient:
                 AssistantMessage(content="Hi!"),
             ]
 
-            await model.chat(messages, response_format="text")
+            await model.chat(messages, ChatOptions(response_format="text"))
 
             # Verify messages were converted to dict format
             call_kwargs = mock_create.call_args.kwargs
@@ -539,7 +559,7 @@ class TestOpenAIClient:
     async def test_temperature_override(self, model):
         """Test that per-call temperature overrides model temperature"""
         # Model was created with temperature=0.7
-        assert model.temperature == 0.7
+        assert model.default_options.temperature == 0.7
 
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
@@ -550,7 +570,7 @@ class TestOpenAIClient:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await model.chat(messages, temperature=0.1)
+            await model.chat(messages, ChatOptions(temperature=0.1))
 
             # Verify the temperature passed to OpenAI
             call_kwargs = mock_create.call_args.kwargs
@@ -569,7 +589,7 @@ class TestOpenAIClient:
             client=client,
             name="gpt-4o-mini",
         )
-        assert model.temperature is None
+        assert model.default_options is None
 
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock(message=MagicMock(content="Response"))]
@@ -632,7 +652,7 @@ class TestOpenAIClient:
         with patch.object(model._client.client.chat.completions, "create", new=mock_create):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await model.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, ChatOptions(response_format=PersonInfo))
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -698,6 +718,27 @@ class TestOpenAIClient:
             # Verify stream=True was passed
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["stream"] is True
+
+    @pytest.mark.asyncio
+    async def test_extra_on_chat_options(self, client):
+        """Test that extra dict on ChatOptions is passed to the API"""
+        model = Model(client=client, name="gpt-4o-mini")
+
+        mock_completion = MagicMock()
+        mock_message = MagicMock(content="Response")
+        del mock_message.tool_calls
+        mock_completion.choices = [MagicMock(message=mock_message)]
+
+        mock_create = AsyncMock(return_value=mock_completion)
+
+        with patch.object(model._client.client.chat.completions, "create", new=mock_create):
+            messages = [UserMessage(content="Test")]
+            await model.chat(messages, ChatOptions(extra={"logprobs": True}))
+
+            # Verify extra kwargs were passed through to the API call
+            call_kwargs = mock_create.call_args.kwargs
+            assert "logprobs" in call_kwargs
+            assert call_kwargs["logprobs"] is True
 
 
 class TestCreateClientFactory:
@@ -796,14 +837,14 @@ class TestCreateModelFactory:
         client = OllamaClient(host="http://localhost:11434")
         config = ModelConfig(
             name="llama3.1",
-            temperature=0.5,
+            default_options=ChatOptions(temperature=0.5),
         )
 
         model = create_model(client, config)
 
         assert isinstance(model, Model)
         assert model.name == "llama3.1"
-        assert model.temperature == 0.5
+        assert model.default_options.temperature == 0.5
 
     def test_create_model_minimal_config(self):
         """Test creating a Model with minimal config"""
@@ -814,7 +855,7 @@ class TestCreateModelFactory:
 
         assert isinstance(model, Model)
         assert model.name == "llama3.1"
-        assert model.temperature is None
+        assert model.default_options is None
 
 
 class TestMultipleModelsPerClient:
@@ -824,14 +865,16 @@ class TestMultipleModelsPerClient:
         """Test that multiple models can use the same client"""
         client = OllamaClient(host="http://localhost:11434")
 
-        model1 = Model(client, name="llama3.1", temperature=0.7)
-        model2 = Model(client, name="qwen2.5:7b-instruct", temperature=0.5)
+        model1 = Model(client, name="llama3.1", default_options=ChatOptions(temperature=0.7))
+        model2 = Model(
+            client, name="qwen2.5:7b-instruct", default_options=ChatOptions(temperature=0.5)
+        )
 
         # Both models share the same client
         assert model1._client is model2._client
         # But have different configurations
         assert model1.name != model2.name
-        assert model1.temperature != model2.temperature
+        assert model1.default_options.temperature != model2.default_options.temperature
 
     @pytest.mark.asyncio
     async def test_multiple_models_independent_usage_tracking(self):

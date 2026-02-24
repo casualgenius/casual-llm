@@ -5,7 +5,7 @@ Tests for Anthropic LLM client implementation.
 import pytest
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, MagicMock, patch
-from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.config import ChatOptions, ClientConfig, ModelConfig, Provider
 from casual_llm.factory import create_client, create_model
 from casual_llm.model import Model
 from casual_llm.messages import UserMessage, AssistantMessage, SystemMessage, StreamChunk
@@ -63,7 +63,7 @@ class TestAnthropicClient:
         return Model(
             client=client,
             name="claude-3-haiku-20240307",
-            temperature=0.7,
+            default_options=ChatOptions(temperature=0.7),
         )
 
     def _create_mock_response(
@@ -109,7 +109,7 @@ class TestAnthropicClient:
                 UserMessage(content="Hello"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Hello from Claude!"
@@ -127,7 +127,7 @@ class TestAnthropicClient:
                 UserMessage(content="Give me JSON"),
             ]
 
-            result = await model.chat(messages, response_format="json")
+            result = await model.chat(messages, ChatOptions(response_format="json"))
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "test", "value": 42}' in result.content
@@ -152,7 +152,7 @@ class TestAnthropicClient:
                 UserMessage(content="How are you?"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Got it!"
@@ -179,7 +179,7 @@ class TestAnthropicClient:
                 AssistantMessage(content="Response"),
             ]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Handled!"
@@ -188,7 +188,7 @@ class TestAnthropicClient:
     async def test_temperature_override(self, model):
         """Test that per-call temperature overrides model temperature"""
         # Model was created with temperature=0.7
-        assert model.temperature == 0.7
+        assert model.default_options.temperature == 0.7
 
         mock_response = self._create_mock_response(content="Response")
         mock_create = AsyncMock(return_value=mock_response)
@@ -197,7 +197,7 @@ class TestAnthropicClient:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            await model.chat(messages, temperature=0.1)
+            await model.chat(messages, ChatOptions(temperature=0.1))
 
             # Verify the temperature passed to Anthropic
             call_kwargs = mock_create.call_args.kwargs
@@ -216,7 +216,7 @@ class TestAnthropicClient:
             client=client,
             name="claude-3-haiku-20240307",
         )
-        assert model.temperature is None
+        assert model.default_options is None
 
         mock_response = MagicMock()
         text_block = MagicMock()
@@ -273,7 +273,7 @@ class TestAnthropicClient:
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me person info")]
 
-            result = await model.chat(messages, response_format=PersonInfo)
+            result = await model.chat(messages, ChatOptions(response_format=PersonInfo))
 
             assert isinstance(result, AssistantMessage)
             assert '{"name": "Alice", "age": 30}' in result.content
@@ -302,7 +302,7 @@ class TestAnthropicClient:
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me person with address")]
 
-            result = await model.chat(messages, response_format=PersonWithAddress)
+            result = await model.chat(messages, ChatOptions(response_format=PersonWithAddress))
 
             assert isinstance(result, AssistantMessage)
 
@@ -324,7 +324,7 @@ class TestAnthropicClient:
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me JSON")]
 
-            result = await model.chat(messages, response_format="json")
+            result = await model.chat(messages, ChatOptions(response_format="json"))
 
             assert isinstance(result, AssistantMessage)
             assert '{"status": "ok"}' in result.content
@@ -344,7 +344,7 @@ class TestAnthropicClient:
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Give me text")]
 
-            result = await model.chat(messages, response_format="text")
+            result = await model.chat(messages, ChatOptions(response_format="text"))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Plain text response"
@@ -364,7 +364,7 @@ class TestAnthropicClient:
 
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            result = await model.chat(messages, response_format="text", max_tokens=100)
+            result = await model.chat(messages, ChatOptions(response_format="text", max_tokens=100))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Short response"
@@ -488,7 +488,7 @@ class TestAnthropicClient:
     async def test_stream_temperature_override(self, model):
         """Test that per-call temperature overrides model temperature during streaming"""
         # Model was created with temperature=0.7
-        assert model.temperature == 0.7
+        assert model.default_options.temperature == 0.7
 
         class MockStreamManager:
             """Mock context manager for streaming"""
@@ -516,7 +516,7 @@ class TestAnthropicClient:
             messages = [UserMessage(content="Test")]
 
             # Call with overridden temperature
-            async for _ in model.stream(messages, temperature=0.2):
+            async for _ in model.stream(messages, ChatOptions(temperature=0.2)):
                 pass
 
             # Verify the temperature passed to Anthropic
@@ -572,7 +572,7 @@ class TestAnthropicClient:
 
             messages = [UserMessage(content="What's the weather in San Francisco?")]
 
-            result = await model.chat(messages, tools=[test_tool])
+            result = await model.chat(messages, ChatOptions(tools=[test_tool]))
 
             assert isinstance(result, AssistantMessage)
             assert result.content == "Let me check the weather."
@@ -602,7 +602,7 @@ class TestAnthropicClient:
 
             messages = [UserMessage(content="Add 2 + 3")]
 
-            await model.chat(messages, tools=[test_tool])
+            await model.chat(messages, ChatOptions(tools=[test_tool]))
 
             # Verify tools were passed
             call_kwargs = mock_create.call_args.kwargs
@@ -623,7 +623,7 @@ class TestAnthropicClient:
                 UserMessage(content="Give me JSON"),
             ]
 
-            await model.chat(messages, response_format="json")
+            await model.chat(messages, ChatOptions(response_format="json"))
 
             # Verify both system message and JSON instruction are in system param
             call_kwargs = mock_create.call_args.kwargs
@@ -633,12 +633,8 @@ class TestAnthropicClient:
             assert "JSON" in system_prompt
 
     @pytest.mark.asyncio
-    async def test_extra_kwargs_on_client(self):
-        """Test that extra_kwargs on client are passed to the API"""
-        client = AnthropicClient(
-            api_key="sk-ant-test-key",
-            extra_kwargs={"metadata": {"user_id": "test123"}},
-        )
+    async def test_extra_on_chat_options(self, client):
+        """Test that extra dict on ChatOptions is passed to the API"""
         model = Model(client=client, name="claude-3-haiku-20240307")
 
         mock_response = MagicMock()
@@ -652,9 +648,9 @@ class TestAnthropicClient:
 
         with patch.object(model._client.client.messages, "create", new=mock_create):
             messages = [UserMessage(content="Test")]
-            await model.chat(messages)
+            await model.chat(messages, ChatOptions(extra={"metadata": {"user_id": "test123"}}))
 
-            # Verify extra_kwargs were passed
+            # Verify extra kwargs were passed
             call_kwargs = mock_create.call_args.kwargs
             assert "metadata" in call_kwargs
             assert call_kwargs["metadata"]["user_id"] == "test123"
@@ -692,11 +688,11 @@ class TestCreateAnthropicClientFactory:
         client = AnthropicClient(api_key="sk-ant-test-key")
         config = ModelConfig(
             name="claude-3-sonnet-20240229",
-            temperature=0.5,
+            default_options=ChatOptions(temperature=0.5),
         )
 
         model = create_model(client, config)
 
         assert isinstance(model, Model)
         assert model.name == "claude-3-sonnet-20240229"
-        assert model.temperature == 0.5
+        assert model.default_options.temperature == 0.5

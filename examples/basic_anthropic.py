@@ -13,6 +13,7 @@ import asyncio
 import os
 from casual_llm import (
     AnthropicClient,
+    ChatOptions,
     Model,
     UserMessage,
     SystemMessage,
@@ -39,7 +40,7 @@ async def basic_text_response():
     client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
 
     # Create model (configure model name and parameters)
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create messages with system and user messages
     messages = [
@@ -48,7 +49,7 @@ async def basic_text_response():
     ]
 
     print(f"Sending message to {ANTHROPIC_MODEL}...")
-    response = await model.chat(messages, response_format="text")
+    response = await model.chat(messages, ChatOptions(response_format="text"))
 
     print(f"\nResponse:\n{response.content}")
 
@@ -70,7 +71,7 @@ async def json_response_example(client):
     print("=" * 50)
 
     # Reuse the same client for a different model configuration
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     messages = [
         SystemMessage(content="You are a helpful assistant."),
@@ -81,7 +82,7 @@ async def json_response_example(client):
     ]
 
     print(f"Requesting JSON response from {ANTHROPIC_MODEL}...")
-    response = await model.chat(messages, response_format="json")
+    response = await model.chat(messages, ChatOptions(response_format="json"))
 
     print(f"\nJSON Response:\n{response.content}")
 
@@ -108,7 +109,7 @@ async def pydantic_model_example(client):
         city: str
 
     # Reuse the same client
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     messages = [
         UserMessage(
@@ -118,7 +119,7 @@ async def pydantic_model_example(client):
 
     print(f"Requesting structured output from {ANTHROPIC_MODEL}...")
     print("Using Pydantic model: Person(name, age, occupation, city)")
-    response = await model.chat(messages, response_format=Person)
+    response = await model.chat(messages, ChatOptions(response_format=Person))
 
     print(f"\nStructured Response:\n{response.content}")
 
@@ -137,7 +138,7 @@ async def conversation_example(client):
     from casual_llm import AssistantMessage
 
     # Reuse the same client
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # First message
     messages = [
@@ -146,7 +147,7 @@ async def conversation_example(client):
     ]
 
     print("User: What is a Python list comprehension?")
-    response1 = await model.chat(messages, response_format="text")
+    response1 = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"\nClaude: {response1.content}")
 
     # Second message - continue the conversation
@@ -154,7 +155,7 @@ async def conversation_example(client):
     messages.append(UserMessage(content="Can you show me a simple example?"))
 
     print("\nUser: Can you show me a simple example?")
-    response2 = await model.chat(messages, response_format="text")
+    response2 = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"\nClaude: {response2.content}")
 
     # Show total usage
@@ -175,8 +176,12 @@ async def multi_model_example(client):
     print()
     print("# One client, multiple models:")
     print("client = AnthropicClient(api_key=api_key)")
-    print("sonnet = Model(client, name='claude-3-5-sonnet-latest', temperature=0.7)")
-    print("haiku = Model(client, name='claude-3-haiku-20240307', temperature=0.5)")
+    print(
+        "sonnet = Model(client, name='claude-3-5-sonnet-latest', default_options=ChatOptions(temperature=0.7))"
+    )
+    print(
+        "haiku = Model(client, name='claude-3-haiku-20240307', default_options=ChatOptions(temperature=0.5))"
+    )
     print()
     print("# Each model tracks its own usage:")
     print("response1 = await sonnet.chat(messages)")

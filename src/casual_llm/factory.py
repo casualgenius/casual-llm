@@ -112,7 +112,6 @@ def create_client(
             api_key=api_key,
             base_url=config.base_url,
             timeout=config.timeout,
-            extra_kwargs=config.extra_kwargs or None,
         )
 
     elif config.provider == Provider.ANTHROPIC:
@@ -126,7 +125,6 @@ def create_client(
             api_key=api_key,
             base_url=config.base_url,
             timeout=config.timeout,
-            extra_kwargs=config.extra_kwargs or None,
         )
 
     else:
@@ -142,23 +140,22 @@ def create_model(
 
     Args:
         client: The LLM client to use
-        config: Model configuration (name, temperature, extra_kwargs)
+        config: Model configuration (name, default_options)
 
     Returns:
         Configured Model instance
 
     Examples:
-        >>> from casual_llm import ClientConfig, ModelConfig, create_client, create_model
+        >>> from casual_llm import ClientConfig, ModelConfig, ChatOptions, create_client, create_model
         >>>
         >>> client_config = ClientConfig(provider="openai", api_key="sk-...")
         >>> client = create_client(client_config)
         >>>
-        >>> model_config = ModelConfig(name="gpt-4", temperature=0.7)
+        >>> model_config = ModelConfig(name="gpt-4", default_options=ChatOptions(temperature=0.7))
         >>> model = create_model(client, model_config)
     """
     return Model(
         client=client,
         name=config.name,
-        temperature=config.temperature,
-        extra_kwargs=config.extra_kwargs or None,
+        default_options=config.default_options,
     )

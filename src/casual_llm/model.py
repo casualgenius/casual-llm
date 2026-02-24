@@ -6,12 +6,11 @@ Provides a user-friendly interface for chat and streaming with per-model usage t
 
 from __future__ import annotations
 
-from typing import Literal, AsyncIterator, Any, TYPE_CHECKING
+from dataclasses import fields
+from typing import Any, AsyncIterator, TYPE_CHECKING
 
-from pydantic import BaseModel
-
+from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
-from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 
 if TYPE_CHECKING:
@@ -27,19 +26,25 @@ class Model:
     same connection.
 
     Examples:
-        >>> from casual_llm import OpenAIClient, Model, UserMessage
+        >>> from casual_llm import OpenAIClient, Model, ChatOptions, UserMessage
         >>>
         >>> # Create a client (configured once)
         >>> client = OpenAIClient(api_key="...")
         >>>
         >>> # Create multiple models using the same client
-        >>> gpt4 = Model(client, name="gpt-4", temperature=0.7)
+        >>> gpt4 = Model(client, name="gpt-4", default_options=ChatOptions(temperature=0.7))
         >>> gpt4o = Model(client, name="gpt-4o")
-        >>> gpt35 = Model(client, name="gpt-3.5-turbo", temperature=0.5)
+        >>> gpt35 = Model(client, name="gpt-3.5-turbo", default_options=ChatOptions(temperature=0.5))
         >>>
         >>> # Use models
         >>> response = await gpt4.chat([UserMessage(content="Hello")])
         >>> print(response.content)
+        >>>
+        >>> # Override defaults per-call
+        >>> response = await gpt4.chat(
+        ...     [UserMessage(content="Be creative")],
+        ...     ChatOptions(temperature=0.9, top_p=0.95),
+        ... )
         >>>
         >>> # Each model tracks its own usage
         >>> print(f"GPT-4 used {gpt4.get_usage().total_tokens} tokens")
@@ -49,8 +54,7 @@ class Model:
         self,
         client: LLMClient,
         name: str,
-        temperature: float | None = None,
-        extra_kwargs: dict[str, Any] | None = None,
+        default_options: ChatOptions | None = None,
     ):
         """
         Create a new Model.
@@ -58,34 +62,52 @@ class Model:
         Args:
             client: The LLM client to use (OpenAIClient, OllamaClient, etc.)
             name: The model identifier (e.g., "gpt-4", "llama3.1", "claude-3-opus")
-            temperature: Default temperature for this model (can be overridden per-call)
-            extra_kwargs: Extra keyword arguments passed to the client methods
+            default_options: Default options applied to all requests (can be overridden per-call)
         """
         self._client = client
         self.name = name
-        self.temperature = temperature
-        self.extra_kwargs = extra_kwargs or {}
+        self.default_options = default_options
         self._last_usage: Usage | None = None
+
+    def _merge_options(self, per_call: ChatOptions | None) -> ChatOptions:
+        """
+        Merge default options with per-call options.
+
+        Per-call non-None values override defaults. The ``extra`` dicts are
+        merged with per-call values winning on conflicts.
+        """
+        if self.default_options is None:
+            return per_call or ChatOptions()
+        if per_call is None:
+            return self.default_options
+
+        merged_kwargs: dict[str, Any] = {}
+        for f in fields(ChatOptions):
+            if f.name == "extra":
+                continue
+            per_call_val = getattr(per_call, f.name)
+            if per_call_val is not None:
+                merged_kwargs[f.name] = per_call_val
+            else:
+                merged_kwargs[f.name] = getattr(self.default_options, f.name)
+
+        # Merge extra dicts (per-call wins on conflicts)
+        merged_extra = {**self.default_options.extra, **per_call.extra}
+        merged_kwargs["extra"] = merged_extra
+
+        return ChatOptions(**merged_kwargs)
 
     async def chat(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions | None = None,
     ) -> AssistantMessage:
         """
         Generate a chat response from the LLM.
 
         Args:
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format. Can be "json", "text", or a Pydantic
-                BaseModel class for JSON Schema-based structured output. When a Pydantic model
-                is provided, the LLM will be instructed to return JSON matching the schema.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional, overrides model default)
+            options: Chat options for this request (overrides model defaults)
 
         Returns:
             AssistantMessage with content and optional tool_calls
@@ -94,6 +116,7 @@ class Model:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
 
         Examples:
+            >>> from casual_llm import ChatOptions
             >>> from pydantic import BaseModel
             >>>
             >>> class PersonInfo(BaseModel):
@@ -103,17 +126,14 @@ class Model:
             >>> # Pass Pydantic model for structured output
             >>> response = await model.chat(
             ...     messages=[UserMessage(content="Tell me about a person")],
-            ...     response_format=PersonInfo
+            ...     options=ChatOptions(response_format=PersonInfo),
             ... )
         """
-        temp = temperature if temperature is not None else self.temperature
+        merged = self._merge_options(options)
         result, usage = await self._client._chat(
             model=self.name,
             messages=messages,
-            response_format=response_format,
-            max_tokens=max_tokens,
-            tools=tools,
-            temperature=temp,
+            options=merged,
         )
         self._last_usage = usage
         return result
@@ -121,10 +141,7 @@ class Model:
     async def stream(
         self,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions | None = None,
     ) -> AsyncIterator[StreamChunk]:
         """
         Stream a chat response from the LLM.
@@ -134,16 +151,11 @@ class Model:
 
         Args:
             messages: List of ChatMessage (UserMessage, AssistantMessage, SystemMessage, etc.)
-            response_format: Expected response format. Can be "json", "text", or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional, may not work
-                with all providers during streaming)
-            temperature: Temperature for this request (optional, overrides model default)
+            options: Chat options for this request (overrides model defaults)
 
         Yields:
             StreamChunk objects containing content fragments as tokens are generated.
-            Each chunk has a `content` attribute with the text fragment.
+            Each chunk has a ``content`` attribute with the text fragment.
 
         Raises:
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
@@ -161,14 +173,11 @@ class Model:
             ...     chunks.append(chunk.content)
             >>> full_response = "".join(chunks)
         """
-        temp = temperature if temperature is not None else self.temperature
+        merged = self._merge_options(options)
         async for chunk in self._client._stream(
             model=self.name,
             messages=messages,
-            response_format=response_format,
-            max_tokens=max_tokens,
-            tools=tools,
-            temperature=temp,
+            options=merged,
         ):
             yield chunk
 
@@ -190,4 +199,4 @@ class Model:
         return self._last_usage
 
     def __repr__(self) -> str:
-        return f"Model(name={self.name!r}, temperature={self.temperature})"
+        return f"Model(name={self.name!r}, default_options={self.default_options})"
