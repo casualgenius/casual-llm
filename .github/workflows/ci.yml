@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main, dev]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-format:
     name: Lint & Format Check
@@ -79,6 +86,7 @@ jobs:
 
   build-check:
     name: Build Check
+    needs: [lint-format, type-check, test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -101,7 +109,7 @@ jobs:
           ls dist/*.whl
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/

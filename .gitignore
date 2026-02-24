@@ -63,3 +63,4 @@ dmypy.json
 
 # Auto Claude data directory
 .auto-claude/
+.full-review
