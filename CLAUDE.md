@@ -6,17 +6,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **casual-llm** is a lightweight, protocol-based LLM provider abstraction library with standardized OpenAI-compatible message models. It's part of the casual-* ecosystem of lightweight AI tools.
 
-### Recent Updates (v0.4.1)
+### Architecture: Client / Model Pattern
 
-- **Anthropic Provider**: Full support for Claude models with vision and streaming
-- **Vision/Multimodal Support**: Send images (URL or base64) to vision-capable models (GPT-4o, Claude 3.5, llava)
-- **Streaming Support**: Real-time response streaming with `AsyncIterator[StreamChunk]` across all providers
-- **Image Utilities**: HTTP/2-enabled image fetching with proper headers for reliable image downloads
-- **Improved Test Coverage**: 95% coverage with comprehensive test suite
+The library uses a **two-layer** architecture:
+
+1. **Client** (connection layer) - Manages API connections. One client per provider, shared across models.
+   - `OllamaClient`, `OpenAIClient`, `AnthropicClient`
+2. **Model** (interaction layer) - User-facing class wrapping a client with model-specific config.
+   - `Model(client, name="gpt-4", default_options=ChatOptions(temperature=0.7))`
+
+```python
+from casual_llm import OpenAIClient, Model, ChatOptions, UserMessage
+
+# Create client once (manages API connection)
+client = OpenAIClient(api_key="...")
+
+# Create multiple models sharing the same client
+gpt4 = Model(client, name="gpt-4", default_options=ChatOptions(temperature=0.7))
+gpt4o = Model(client, name="gpt-4o")
+
+# Use models
+response = await gpt4.chat([UserMessage(content="Hello")])
+print(response.content)
+```
 
 ### Key Design Principles
 
-1. **Lightweight** - Minimal dependencies (pydantic, ollama, httpx)
+1. **Lightweight** - Minimal core dependencies (pydantic, httpx)
 2. **Protocol-based** - Uses `typing.Protocol`, no inheritance required
 3. **Type-safe** - Full type hints with py.typed marker (Python 3.10+)
 4. **OpenAI-compatible** - Standard message format used across the industry
@@ -29,43 +45,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 casual-llm/
-├── src/casual_llm/              # Main package
-│   ├── __init__.py              # Public API exports (main entry point)
+├── src/casual_llm/
+│   ├── __init__.py              # Public API exports
 │   ├── messages.py              # OpenAI-compatible message models
 │   ├── tools.py                 # Tool and ToolParameter models
-│   ├── config.py                # ModelConfig and Provider enum
+│   ├── config.py                # ChatOptions, ClientConfig, ModelConfig, Provider enum
 │   ├── usage.py                 # Usage statistics model
-│   ├── message_converters/      # Message format converters
-│   │   ├── openai.py            # OpenAI format converters
-│   │   ├── ollama.py            # Ollama format converters
-│   │   └── anthropic.py         # Anthropic format converters
-│   ├── tool_converters/         # Tool format converters
-│   │   ├── openai.py            # OpenAI tool format
-│   │   ├── ollama.py            # Ollama tool format
-│   │   └── anthropic.py         # Anthropic tool format
-│   ├── utils/                   # Utility functions
+│   ├── model.py                 # Model class (user-facing interaction layer)
+│   ├── factory.py               # create_client() and create_model() factories
+│   ├── message_converters/      # Message format converters per provider
+│   │   ├── openai.py
+│   │   ├── ollama.py
+│   │   └── anthropic.py
+│   ├── tool_converters/         # Tool format converters per provider
+│   │   ├── openai.py
+│   │   ├── ollama.py
+│   │   └── anthropic.py
+│   ├── utils/
 │   │   └── image.py             # Image fetching and encoding utilities
 │   ├── py.typed                 # PEP 561 type marker
-│   └── providers/               # Provider implementations
-│       ├── __init__.py          # Provider exports + create_provider() factory
-│       ├── base.py              # LLMProvider protocol
-│       ├── ollama.py            # OllamaProvider
-│       ├── openai.py            # OpenAIProvider (optional dependency)
-│       └── anthropic.py         # AnthropicProvider (optional dependency)
-├── tests/                       # Test suite
-│   ├── test_messages.py         # Message model tests
-│   ├── test_tools.py            # Tool model tests
-│   ├── test_providers.py        # Provider tests
-│   └── test_image_utils.py      # Image utility tests
-├── examples/                    # Working examples
-│   ├── basic_ollama.py          # Ollama usage
-│   ├── basic_openai.py          # OpenAI usage
-│   ├── basic_anthropic.py       # Anthropic usage
-│   ├── message_formatting.py    # All message types demo
-│   ├── tool_calling.py          # Complete tool calling workflow
-│   ├── vision_example.py        # Vision/multimodal examples
-│   └── streaming_example.py     # Streaming response examples
-└── docs/                        # Documentation (future)
+│   └── providers/
+│       ├── __init__.py          # Client exports
+│       ├── base.py              # LLMClient protocol
+│       ├── ollama.py            # OllamaClient (optional: casual-llm[ollama])
+│       ├── openai.py            # OpenAIClient (optional: casual-llm[openai])
+│       └── anthropic.py         # AnthropicClient (optional: casual-llm[anthropic])
+├── tests/
+├── examples/
+└── docs/
 ```
 
 ---
@@ -84,64 +91,30 @@ This project uses **[uv](https://github.com/astral-sh/uv)** for dependency manag
 ### Setup
 
 ```bash
-# Install dependencies
+# Install core dependencies only
 uv sync
 
-# Install with all extras (includes dev dependencies, openai, and anthropic)
+# Install with all provider extras + dev dependencies
 uv sync --all-extras
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
 uv run pytest tests/
-
-# Run with coverage
 uv run pytest tests/ --cov=casual_llm --cov-report=term-missing
-
-# Run specific test
 uv run pytest tests/test_messages.py::test_user_message -v
-```
-
-### Running Examples
-
-```bash
-# Message formatting example (no external dependencies)
-uv run python examples/message_formatting.py
-
-# Ollama example (requires Ollama running locally)
-uv run python examples/basic_ollama.py
-
-# Tool calling example (requires Ollama running locally)
-uv run python examples/tool_calling.py
-
-# OpenAI example (requires OPENAI_API_KEY env var)
-uv run python examples/basic_openai.py
-
-# Anthropic example (requires ANTHROPIC_API_KEY env var)
-uv run python examples/basic_anthropic.py
-
-# Vision example (requires provider and API key)
-uv run python examples/vision_example.py
-
-# Streaming example (requires provider and API key)
-uv run python examples/streaming_example.py
 ```
 
 ### Code Quality
 
 ```bash
-# Format code with black
 uv run black src/ tests/ examples/
-
-# Lint with ruff
 uv run ruff check src/ tests/ examples/
-
-# Type check with mypy
 uv run mypy src/casual_llm
+uv run pytest tests/
 
-# Run all checks before committing
+# All at once
 uv run black src/ tests/ examples/ && \
 uv run ruff check src/ tests/ examples/ && \
 uv run mypy src/casual_llm && \
@@ -152,193 +125,172 @@ uv run pytest tests/
 
 ## Core Components
 
-### 1. Message Models (`src/casual_llm/messages.py`)
+### 1. Configuration (`src/casual_llm/config.py`)
 
-OpenAI-compatible Pydantic models for LLM conversations:
+**`ChatOptions`** - Dataclass for all chat/stream request options:
 
-- `UserMessage` - Message from the user (supports text or multimodal content)
-- `AssistantMessage` - Message from the AI (with optional tool_calls)
-- `SystemMessage` - System prompt that sets behavior
-- `ToolResultMessage` - Result from tool/function execution
-- `AssistantToolCall` - Tool call structure
-- `AssistantToolCallFunction` - Function details within a tool call
-- `ChatMessage` - Type alias for any message type
-- `TextContent` - Text block for multimodal messages
-- `ImageContent` - Image block for vision support (URL or base64)
-- `StreamChunk` - Chunk of streaming response
+```python
+@dataclass
+class ChatOptions:
+    response_format: Literal["json", "text"] | type[BaseModel] = "text"
+    max_tokens: int | None = None
+    tools: list[Tool] | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    stop: list[str] | None = None
+    tool_choice: Literal["auto", "none", "required"] | str | None = None
+    frequency_penalty: float | None = None  # OpenAI, Ollama
+    presence_penalty: float | None = None   # OpenAI, Ollama
+    seed: int | None = None                 # OpenAI, Ollama
+    top_k: int | None = None                # Anthropic, Ollama
+    extra: dict[str, Any] = field(default_factory=dict)  # Provider-specific pass-through
+```
 
-**Important**: These were moved from `casual-mcp` to create a single source of truth for message models across the casual-* ecosystem.
+**`ClientConfig`** - Dataclass for client connection configuration:
+- `provider`: `Provider` enum or string ("openai", "ollama", "anthropic")
+- `name`: Optional name for automatic API key lookup (`{NAME}_API_KEY` env var)
+- `base_url`, `api_key`, `timeout`, `extra_kwargs`
 
-**Vision Support**: UserMessage content can be either a simple string or a list of TextContent/ImageContent objects for multimodal messages.
+**`ModelConfig`** - Dataclass for model configuration:
+- `name`: Model identifier (e.g., "gpt-4", "llama3.1")
+- `default_options`: Optional `ChatOptions` defaults
 
-### 2. Tool Models (`src/casual_llm/tools.py`)
+**`Provider`** - Enum: `OPENAI`, `OLLAMA`, `ANTHROPIC`
 
-Models for defining LLM function calling tools:
+### 2. Model Class (`src/casual_llm/model.py`)
 
-- `Tool` - Tool definition with name, description, parameters, and required fields
-- `ToolParameter` - JSON Schema-based parameter definition
+The **user-facing** class for LLM interactions:
 
-**Design**: Tool names are flexible strings (not restricted to Python identifiers) to support various naming conventions (snake_case, kebab-case, dotted notation).
+```python
+class Model:
+    def __init__(self, client: LLMClient, name: str, default_options: ChatOptions | None = None): ...
 
-### 3. Provider Protocol (`src/casual_llm/providers/base.py`)
+    async def chat(self, messages: list[ChatMessage], options: ChatOptions | None = None) -> AssistantMessage: ...
+    async def stream(self, messages: list[ChatMessage], options: ChatOptions | None = None) -> AsyncIterator[StreamChunk]: ...
+    def get_usage(self) -> Usage | None: ...
+```
 
-- `LLMProvider` - Protocol defining the interface for all providers
-- The protocol defines `chat()` and `stream()` methods that return `AssistantMessage` and `AsyncIterator[StreamChunk]` respectively
+- Wraps an `LLMClient` with model-specific configuration
+- Merges `default_options` with per-call `options` (per-call non-None values win)
+- Tracks per-model usage statistics via `get_usage()`
 
-**Key Design**: Uses `typing.Protocol` so custom providers don't need to inherit from a base class.
+### 3. LLMClient Protocol (`src/casual_llm/providers/base.py`)
 
-### 4. Configuration (`src/casual_llm/config.py`)
+Internal protocol that provider clients implement:
 
-- `ModelConfig` - Dataclass for model configuration
-- `Provider` - Enum (OPENAI, OLLAMA, ANTHROPIC)
+```python
+class LLMClient(Protocol):
+    async def _chat(self, model: str, messages: list[ChatMessage], options: ChatOptions) -> tuple[AssistantMessage, Usage | None]: ...
+    def _stream(self, model: str, messages: list[ChatMessage], options: ChatOptions) -> AsyncIterator[StreamChunk]: ...
+```
 
-### 5. Provider Implementations
+**Key**: Uses `typing.Protocol` (PEP 544) — any class implementing these methods is compatible without inheritance.
 
-**OllamaProvider** (`src/casual_llm/providers/ollama.py`):
-- Uses the official `ollama` Python library with `AsyncClient`
-- Supports JSON and text response formats
-- Supports tool calling
-- Supports vision (fetches images and converts to base64)
-- Supports streaming
-- Generates unique tool call IDs if Ollama doesn't provide them
+### 4. Message Models (`src/casual_llm/messages.py`)
 
-**OpenAIProvider** (`src/casual_llm/providers/openai.py`):
+OpenAI-compatible Pydantic models:
+
+- `UserMessage` - User message (text or multimodal: `str | list[TextContent | ImageContent]`)
+- `AssistantMessage` - AI response (with optional `tool_calls`)
+- `SystemMessage` - System prompt
+- `ToolResultMessage` - Tool execution result
+- `AssistantToolCall` / `AssistantToolCallFunction` - Tool call structures
+- `TextContent` / `ImageContent` - Multimodal content blocks
+- `StreamChunk` - Streaming response chunk (`content`, `finish_reason`)
+- `ChatMessage` - TypeAlias for all message types
+
+### 5. Tool Models (`src/casual_llm/tools.py`)
+
+- `Tool` - Tool definition (name, description, parameters, required)
+- `ToolParameter` - JSON Schema-based parameter definition (`extra="allow"` for additional schema fields)
+- `Tool.input_schema` - Property returning full JSON Schema dict
+- `Tool.from_input_schema()` - Create Tool from MCP-style inputSchema
+
+### 6. Provider Implementations
+
+All providers implement the `LLMClient` protocol. All are **optional dependencies**.
+
+**OllamaClient** (`providers/ollama.py`) — `pip install casual-llm[ollama]`:
+- Uses official `ollama.AsyncClient`
+- Supports JSON/text/Pydantic model response formats
+- Supports tool calling, vision (client-side base64 encoding), streaming
+
+**OpenAIClient** (`providers/openai.py`) — `pip install casual-llm[openai]`:
+- Uses `openai.AsyncOpenAI`
 - Works with OpenAI API and compatible services (OpenRouter, etc.)
-- Optional dependency (`uv add casual-llm[openai]`)
-- Async-first using `AsyncOpenAI` client
-- Supports tool calling
-- Supports vision (URLs and base64 images)
-- Supports streaming
+- Supports tool calling, vision (native URL/base64), streaming
 
-**AnthropicProvider** (`src/casual_llm/providers/anthropic.py`):
-- Works with Anthropic API for Claude models
-- Optional dependency (`uv add casual-llm[anthropic]`)
-- Async-first using `AsyncAnthropic` client
-- Supports tool calling
-- Supports vision (URLs and base64 images natively)
-- Supports streaming
-- Uses separate system parameter (not in messages array)
+**AnthropicClient** (`providers/anthropic.py`) — `pip install casual-llm[anthropic]`:
+- Uses `anthropic.AsyncAnthropic`
+- Extracts system messages to separate `system` parameter
+- Supports tool calling, vision (native URL/base64), streaming
 
-### 6. Converters
+### 7. Factory Functions (`src/casual_llm/factory.py`)
 
-**Message Converters**:
-- `src/casual_llm/message_converters/openai.py` - OpenAI format conversion
-- `src/casual_llm/message_converters/ollama.py` - Ollama format conversion
-- `src/casual_llm/message_converters/anthropic.py` - Anthropic format conversion (with vision support)
+```python
+def create_client(config: ClientConfig) -> LLMClient: ...
+def create_model(client: LLMClient, config: ModelConfig) -> Model: ...
+```
 
-Each converter handles:
-- Message format conversion (including multimodal content)
-- Tool call parsing from provider responses
-- Provider-specific quirks (e.g., Anthropic's separate system parameter)
+- `create_client()` resolves API keys from config or `{name}_API_KEY` env vars
+- Handles optional dependencies with clear ImportError messages
 
-**Tool Converters**:
-- `src/casual_llm/tool_converters/openai.py` - OpenAI tool format
-- `src/casual_llm/tool_converters/ollama.py` - Ollama tool format
-- `src/casual_llm/tool_converters/anthropic.py` - Anthropic tool format
+### 8. Converters
 
-**Note**: OpenAI and Ollama use the same tool format, so the converters share implementation.
+**Message Converters** (`message_converters/`):
+- `convert_messages_to_openai()` / `convert_messages_to_ollama()` / `convert_messages_to_anthropic()`
+- `convert_tool_calls_from_openai()` / `convert_tool_calls_from_ollama()` / `convert_tool_calls_from_anthropic()`
+- `extract_system_message()` — Anthropic-specific system message extraction
 
-### 7. Utilities
+**Tool Converters** (`tool_converters/`):
+- `tool_to_openai()` / `tools_to_openai()` — OpenAI tool format
+- `tool_to_ollama()` / `tools_to_ollama()` — Ollama tool format (same as OpenAI)
+- `tool_to_anthropic()` / `tools_to_anthropic()` — Anthropic tool format
 
-**Image Utilities** (`src/casual_llm/utils/image.py`):
-- `fetch_image_as_base64()` - Fetch image from URL and convert to base64
-- `strip_base64_prefix()` - Remove data URI prefix from base64 strings
-- `add_base64_prefix()` - Add data URI prefix to base64 strings
-- Uses HTTP/2 for reliable fetching from sites like Wikipedia
-- Includes User-Agent header for bot detection avoidance
-- Configurable size limits and timeout
+### 9. Image Utilities (`src/casual_llm/utils/image.py`)
 
-### 8. Factory Function (`create_provider()`)
-
-Located in `src/casual_llm/providers/__init__.py`:
-- Creates provider instances from `ModelConfig`
-- Handles optional dependencies gracefully
-- Provides clear error messages
+- `fetch_image_as_base64(url)` — Async image fetch with SSRF protection, size limits, redirect validation
+- `strip_base64_prefix()` / `add_base64_prefix()` — Data URI helpers
+- Uses HTTP/2 for reliable fetching
 
 ---
 
 ## API Design Guidelines
 
-### Public vs Private
+### Public API (exported from `__init__.py`)
 
-**Public API** (exported from `src/casual_llm/__init__.py`):
-- All message models (UserMessage, AssistantMessage, etc.)
-- All tool models (Tool, ToolParameter)
-- Provider protocol and implementations
-- Configuration (ModelConfig, Provider)
-- `create_provider()` factory
-- Message and tool converters
+Core types: `ChatOptions`, `ClientConfig`, `ModelConfig`, `Provider`, `Model`, `LLMClient`
+Clients: `OllamaClient`, `OpenAIClient`, `AnthropicClient`
+Factories: `create_client`, `create_model`
+Messages: `UserMessage`, `AssistantMessage`, `SystemMessage`, `ToolResultMessage`, `AssistantToolCall`, `AssistantToolCallFunction`, `StreamChunk`, `TextContent`, `ImageContent`, `ChatMessage`
+Tools: `Tool`, `ToolParameter`
+Usage: `Usage`
+Converters: All converter functions (exported for advanced use cases)
 
-**Internal API** (not exported):
-- Provider implementation details
-- Internal helper functions
+### options.extra Safety
+
+The `extra` dict in `ChatOptions` passes provider-specific kwargs to the API call. **Core parameters cannot be overwritten** — if an `extra` key conflicts with a core parameter (e.g., "model", "messages"), it is silently ignored with a warning log.
 
 ### Type Hints
 
 - **Always** include type hints on all public APIs
-- Use `typing.Protocol` for interfaces
-- Use `TypeAlias` for type aliases (e.g., `ChatMessage`)
-- Use modern Python 3.10+ syntax: `list[X]`, `dict[K, V]`, `X | None`
-- Use `Literal` for string enums (e.g., `Literal["json", "text"]`)
-- Add `from __future__ import annotations` when needed for forward references
+- Modern Python 3.10+ syntax: `list[X]`, `dict[K, V]`, `X | None`
+- `from __future__ import annotations` for forward references
+- `typing.Protocol` for interfaces, `TypeAlias` for type aliases
 
 ### Async Patterns
 
-- All LLM operations are async (`async def chat()`, `async def stream()`)
-- OllamaProvider uses `ollama.AsyncClient`
-- OpenAIProvider uses `openai.AsyncOpenAI`
-- AnthropicProvider uses `anthropic.AsyncAnthropic`
-- Test async functions with `pytest-asyncio`
+- All LLM operations are async
+- OllamaClient uses `ollama.AsyncClient`
+- OpenAIClient uses `openai.AsyncOpenAI`
+- AnthropicClient uses `anthropic.AsyncAnthropic`
+- Test with `pytest-asyncio` (`asyncio_mode = "auto"` in pyproject.toml)
 
-### Method Signatures
-
-The LLMProvider protocol defines two core methods:
-
-**chat()** - Generate a complete response:
+### Logging
 
 ```python
-async def chat(
-    self,
-    messages: list[ChatMessage],
-    response_format: Literal["json", "text"] | type[BaseModel] = "text",
-    max_tokens: int | None = None,
-    tools: list[Tool] | None = None,
-    temperature: float | None = None,
-) -> AssistantMessage:
-    """
-    Generate a chat response from the LLM.
-
-    Always returns AssistantMessage (not str).
-    """
-```
-
-**stream()** - Stream response chunks:
-
-```python
-async def stream(
-    self,
-    messages: list[ChatMessage],
-    response_format: Literal["json", "text"] | type[BaseModel] = "text",
-    max_tokens: int | None = None,
-    tools: list[Tool] | None = None,
-    temperature: float | None = None,
-) -> AsyncIterator[StreamChunk]:
-    """
-    Stream chat response chunks in real-time.
-
-    Yields StreamChunk objects as tokens are generated.
-    """
-```
-
-**get_usage()** - Get token usage from last call:
-
-```python
-def get_usage(self) -> Usage | None:
-    """
-    Get token usage statistics from the last chat() or stream() call.
-
-    Returns Usage object with token counts, or None if no calls have been made.
-    """
+logger = logging.getLogger(__name__)
+logger.debug("Processing %d messages", len(messages))  # Lazy formatting
 ```
 
 ---
@@ -347,391 +299,87 @@ def get_usage(self) -> Usage | None:
 
 ### Adding a New Provider
 
-1. **Create provider file**: `src/casual_llm/providers/your_provider.py`
+1. Create `src/casual_llm/providers/your_provider.py`:
 
 ```python
-from __future__ import annotations
-
-from typing import Literal, AsyncIterator
-from pydantic import BaseModel
+from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
-from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 
-class YourProvider:
-    """Your provider implementation."""
+class YourClient:
+    def __init__(self, api_key: str | None = None, timeout: float = 60.0): ...
 
-    async def chat(
-        self,
-        messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
-    ) -> AssistantMessage:
-        # Implementation here
+    async def _chat(
+        self, model: str, messages: list[ChatMessage], options: ChatOptions,
+    ) -> tuple[AssistantMessage, Usage | None]:
         # 1. Convert messages using message_converters
-        # 2. Convert tools using tool_converters (if tools provided)
-        # 3. Handle vision content (ImageContent) if present
+        # 2. Convert tools using tool_converters (if options.tools)
+        # 3. Build request kwargs, apply options
         # 4. Call your LLM API
-        # 5. Parse response including tool_calls if present
-        # 6. Store usage statistics
-        # 7. Return AssistantMessage
+        # 5. Parse response, return (AssistantMessage, Usage)
         ...
 
-    async def stream(
-        self,
-        messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+    async def _stream(
+        self, model: str, messages: list[ChatMessage], options: ChatOptions,
     ) -> AsyncIterator[StreamChunk]:
-        # Streaming implementation
-        # 1. Convert messages and tools
-        # 2. Call your LLM API with streaming enabled
-        # 3. Yield StreamChunk objects as tokens arrive
-        # 4. Update usage statistics
+        # Yield StreamChunk objects as tokens arrive
         ...
-        yield StreamChunk(content="chunk", finish_reason=None)
-
-    def get_usage(self) -> Usage | None:
-        """Return token usage from last call."""
-        return self._last_usage
 ```
 
-2. **Export from providers/__init__.py**:
-```python
-from casual_llm.providers.your_provider import YourProvider
-
-__all__ = [..., "YourProvider"]
-```
-
-3. **Add to create_provider()** if needed
-4. **Write tests**: `tests/test_your_provider.py`
-5. **Add example**: `examples/basic_your_provider.py`
-6. **Update README.md** with usage example
+2. Add try/except import in `providers/__init__.py`
+3. Add to `create_client()` in `factory.py`
+4. Add optional dependency in `pyproject.toml`
+5. Write tests and example
 
 ### Adding a New Message Type
 
-1. **Add to `src/casual_llm/messages.py`**:
-```python
-class NewMessage(BaseModel):
-    """Description of new message type."""
-    role: Literal["new_role"] = "new_role"
-    content: str
-```
-
-2. **Update `ChatMessage` TypeAlias**:
-```python
-ChatMessage: TypeAlias = (
-    AssistantMessage | SystemMessage | ToolResultMessage |
-    UserMessage | NewMessage
-)
-```
-
-3. **Update message converters** to handle the new type
-4. **Add tests** to `tests/test_messages.py`
-5. **Update examples** if relevant
-
-### Updating Dependencies
-
-```bash
-# Add new dependency
-uv add package-name
-
-# Add dev dependency
-uv add --dev package-name
-
-# Add optional dependency (edit pyproject.toml manually)
-[project.optional-dependencies]
-feature = ["package-name>=1.0.0"]
-```
-
-Then run `uv sync` to update lock file.
-
----
-
-## Testing Guidelines
-
-### Test Structure
-
-- One test file per module: `test_messages.py`, `test_providers.py`, `test_tools.py`
-- Use descriptive test names: `test_user_message_with_none_content()`
-- Group related tests with classes (e.g., `TestOllamaProvider`)
-
-### What to Test
-
-**Message Models**:
-- Creation and validation
-- Serialization (`model_dump()`, `model_dump_json()`)
-- Type aliases work correctly
-- Edge cases (None values, empty lists, etc.)
-- Multimodal content (TextContent, ImageContent)
-
-**Tool Models**:
-- Parameter definitions
-- Nested objects and arrays
-- Tool name flexibility (various naming conventions)
-- `input_schema` property
-- `from_input_schema()` class method
-
-**Providers**:
-- Mock external APIs (ollama.AsyncClient, openai.AsyncOpenAI, anthropic.AsyncAnthropic)
-- Test both JSON and text response formats
-- Test Pydantic model response formats
-- Test tool calling (with and without tools)
-- Test vision support (URL and base64 images)
-- Test streaming (verify StreamChunk yields)
-- Test usage tracking (get_usage())
-- Test error handling
-- Always verify returned type is AssistantMessage or StreamChunk
-
-**Converters**:
-- Message conversion to/from provider formats
-- Tool conversion to provider formats
-- Tool call parsing from provider responses
-- Vision content conversion (ImageContent handling)
-
-**Utilities**:
-- Image fetching with various scenarios (success, errors, timeouts)
-- HTTP/2 support verification
-- Size limit validation
-- Base64 encoding/decoding
-
-### Running Specific Tests
-
-```bash
-# Single test function
-uv run pytest tests/test_messages.py::test_user_message -v
-
-# Single test class
-uv run pytest tests/test_providers.py::TestOllamaProvider -v
-
-# Single test file
-uv run pytest tests/test_messages.py -v
-
-# With output
-uv run pytest tests/ -v -s
-```
+1. Add Pydantic model to `messages.py`
+2. Update `ChatMessage` TypeAlias
+3. Update all message converters
+4. Add tests
 
 ---
 
 ## Dependencies
 
-### Core Dependencies (Required)
+### Core (Required)
 
-- `pydantic>=2.0.0` - Data validation and models
-- `ollama>=0.6.1` - Official Ollama Python library
-- `httpx[http2]>=0.28.1` - HTTP client with HTTP/2 support for image fetching
+- `pydantic>=2.0.0` — Data validation and models
+- `httpx[http2]>=0.28.1` — HTTP client for image fetching
 
-### Optional Dependencies
+### Optional (Provider SDKs)
 
-- `openai>=1.0.0` - For OpenAIProvider (install with `casual-llm[openai]`)
-- `anthropic>=0.20.0` - For AnthropicProvider (install with `casual-llm[anthropic]`)
+- `ollama>=0.6.1` — `pip install casual-llm[ollama]`
+- `openai>=1.0.0` — `pip install casual-llm[openai]`
+- `anthropic>=0.20.0` — `pip install casual-llm[anthropic]`
 
-### Dev Dependencies
+### Dev
 
-- `pytest>=7.0.0` - Testing framework
-- `pytest-asyncio>=0.21.0` - Async test support
-- `pytest-cov>=4.0.0` - Coverage reporting
-- `black>=23.0.0` - Code formatting
-- `ruff>=0.1.0` - Fast linting
-- `mypy>=1.0.0` - Type checking
+- `pytest`, `pytest-asyncio`, `pytest-cov`, `black`, `ruff`, `mypy`
 
 ---
 
-## Release Process
+## Testing Guidelines
 
-### Version Numbering
-
-Follow semantic versioning (semver):
-- **Patch** (0.1.X): Bug fixes, documentation
-- **Minor** (0.X.0): New features, backwards compatible
-- **Major** (X.0.0): Breaking changes
-
-### Creating a Release
-
-1. **Update version** in `pyproject.toml` and `src/casual_llm/__init__.py`
-2. **Update CHANGELOG.md** with changes
-3. **Run all checks**:
-```bash
-uv run black src/ tests/ examples/
-uv run ruff check src/ tests/ examples/
-uv run mypy src/casual_llm
-uv run pytest tests/
-```
-
-4. **Build package**:
-```bash
-uv add --dev build twine
-uv run python -m build
-```
-
-5. **Create git tag**:
-```bash
-git tag v0.X.Y
-git push origin v0.X.Y
-```
-
-6. **Publish to PyPI**:
-```bash
-uv run twine upload dist/*
-```
+- One test file per module
+- Mock external APIs (never make real API calls in tests)
+- Test both chat and stream paths
+- Test tool calling, vision, and response formats
+- Test `options.extra` doesn't overwrite core parameters
+- Test usage tracking via `model.get_usage()`
+- Descriptive test names: `test_user_message_with_multimodal_content()`
 
 ---
 
 ## Integration with casual-* Ecosystem
 
-### Relationship to casual-mcp
-
-**casual-llm** provides the foundational message models, tool models, and provider abstractions that **casual-mcp** builds upon:
-
 ```
 casual-mcp (orchestration, MCP server integration)
-    ↓ depends on
-casual-llm (providers, messages, tools)
+    |
+casual-llm (clients, models, messages, tools)
 ```
 
-**Important**: Message and tool models were moved FROM casual-mcp TO casual-llm to create a single source of truth. casual-mcp should re-export them for backwards compatibility.
-
-### Future: casual-memory
-
-The planned **casual-memory** library will also depend on casual-llm:
-
-```
-casual-memory (memory extraction, conflict detection)
-    ↓ depends on
-casual-llm (providers, messages)
-```
-
----
-
-## Troubleshooting
-
-### Import Errors
-
-```python
-# ❌ Wrong
-from casual_llm.providers.ollama import OllamaProvider
-
-# ✅ Correct
-from casual_llm import OllamaProvider
-```
-
-### OpenAI Provider Not Found
-
-```bash
-# Install optional dependency
-uv add casual-llm[openai]
-# or
-uv sync --all-extras
-```
-
-### Tests Failing
-
-```bash
-# Make sure dev dependencies are installed
-uv sync --all-extras
-
-# Check if pytest is available
-uv run pytest --version
-
-# Run with verbose output
-uv run pytest tests/ -v -s
-```
-
-### Ollama Connection Issues
-
-```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
-
-# Start Ollama if needed
-ollama serve
-
-# Pull a model
-ollama pull qwen2.5:7b-instruct
-```
-
----
-
-## Code Style
-
-### Imports
-
-```python
-# Standard library
-import logging
-import uuid
-from typing import Any, Literal
-
-# Third-party
-from pydantic import BaseModel, Field
-from ollama import AsyncClient
-
-# Local
-from casual_llm.messages import ChatMessage, AssistantMessage
-from casual_llm.tools import Tool
-```
-
-### Type Hints
-
-Use modern Python 3.10+ syntax:
-
-```python
-# ✅ Correct (Python 3.10+)
-def process(items: list[str]) -> dict[str, int]:
-    ...
-
-# ❌ Old style (avoid)
-from typing import List, Dict
-def process(items: List[str]) -> Dict[str, int]:
-    ...
-```
-
-### Logging
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)  # ✅ Correct
-
-# Use lazy formatting for performance
-logger.debug("Processing %d messages", len(messages))
-
-# ❌ Avoid f-strings in logging (evaluates even if logging disabled)
-logger.debug(f"Processing {len(messages)} messages")
-```
-
-### Docstrings
-
-Use Google-style docstrings:
-
-```python
-def create_provider(
-    model_config: ModelConfig,
-    timeout: float = 60.0,
-) -> LLMProvider:
-    """
-    Factory function to create an LLM provider.
-
-    Args:
-        model_config: Model configuration with provider details
-        timeout: HTTP timeout in seconds (default: 60.0)
-
-    Returns:
-        Configured LLM provider instance
-
-    Raises:
-        ValueError: If provider type is not supported
-        ImportError: If openai package is not installed for OpenAI provider
-
-    Examples:
-        >>> config = ModelConfig(name="gpt-4", provider=Provider.OPENAI)
-        >>> provider = create_provider(config)
-    """
-```
+Message and tool models are the single source of truth in casual-llm.
 
 ---
 
@@ -739,96 +387,30 @@ def create_provider(
 
 ### Don't Break Backwards Compatibility
 
-Once published to PyPI:
-- Don't remove public APIs without deprecation period
-- Don't change function signatures (add optional params only)
-- Don't change message model field names
-- Don't change return types
-- Document breaking changes in CHANGELOG.md
+Post-v1.0: Don't remove public APIs without deprecation, don't change signatures or return types, document breaking changes in CHANGELOG.md.
 
 ### Keep It Lightweight
 
-- Avoid adding dependencies unless absolutely necessary
-- Keep optional dependencies optional (e.g., openai)
-- Don't add features that belong in casual-mcp or casual-memory
-- Focus on core provider abstraction and message models
+Avoid unnecessary dependencies. All provider SDKs are optional. Focus on core abstraction.
 
 ### Protocol-Based Design
 
-- Use `typing.Protocol` for interfaces
-- Don't require inheritance from base classes
-- Make it easy to create custom providers
-- Support any provider that implements the protocol
-
-### Tool Calling
-
-- Tool names are flexible strings (not restricted to Python identifiers)
-- Support various naming conventions (snake_case, kebab-case, dotted)
-- Always return AssistantMessage from `chat()`, never just a string
-- Generate unique tool call IDs if provider doesn't provide them
+Use `typing.Protocol` for interfaces. Don't require inheritance. Support custom providers.
 
 ### Vision Support
 
-- **OpenAI and Anthropic**: Support both URL and base64 images natively - no client-side fetching needed
-- **Ollama**: Requires client-side fetching and base64 encoding (handled by image utilities)
-- Use `ImageContent` for images in multimodal messages
-- Use `TextContent` for text in multimodal messages
-- Image utilities use HTTP/2 for reliable fetching from sites like Wikipedia
-- Include proper User-Agent headers to avoid bot detection
-
-### Streaming
-
-- All providers must implement both `chat()` and `stream()` methods
-- Streaming yields `StreamChunk` objects with `content` and `finish_reason`
-- Usage statistics should be updated after streaming completes
-- Stream method signature matches chat method for consistency
-
----
-
-## Getting Help
-
-- **Issues**: https://github.com/casualgenius/casual-llm/issues
-- **Discussions**: https://github.com/casualgenius/casual-llm/discussions
-- **casual-mcp**: https://github.com/AlexStansfield/casual-mcp
+- **OpenAI/Anthropic**: Native URL and base64 support — no client-side fetching
+- **Ollama**: Requires client-side fetching via `fetch_image_as_base64()`
+- Image utilities include SSRF protection (blocks private IPs, validates redirects)
 
 ---
 
 ## Quick Reference
 
-### Run Tests
 ```bash
-uv run pytest tests/
+uv run pytest tests/                                    # Run tests
+uv run pytest tests/ --cov=casual_llm                   # With coverage
+uv run black src/ tests/ examples/                      # Format
+uv run ruff check src/ tests/ examples/                 # Lint
+uv run mypy src/casual_llm                              # Type check
 ```
-
-### Format Code
-```bash
-uv run black src/ tests/ examples/
-```
-
-### Type Check
-```bash
-uv run mypy src/casual_llm
-```
-
-### Run Examples
-```bash
-# Basic examples
-uv run python examples/message_formatting.py
-uv run python examples/basic_ollama.py
-uv run python examples/basic_openai.py
-uv run python examples/basic_anthropic.py
-
-# Advanced examples
-uv run python examples/tool_calling.py
-uv run python examples/vision_example.py
-uv run python examples/streaming_example.py
-```
-
-### Build Package
-```bash
-uv run python -m build
-```
-
----
-
-**Remember**: casual-llm is about being lightweight, protocol-based, and easy to use. Keep it simple! 🎯

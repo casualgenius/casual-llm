@@ -5,13 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **SSRF protection for image fetching**: `_validate_url()` blocks private IP ranges (RFC 1918, loopback, link-local), non-http(s) schemes, and validates redirect targets
+- **Redirect safety**: Manual redirect handling with target validation (max 5 hops) to prevent redirect-based SSRF
+- **Comprehensive security tests**: 41 tests covering SSRF protection, options.extra safety, and max_tokens boundary conditions
+- **Anthropic converter tests**: 31 tests for message conversion edge cases (multi-image, mixed content, system extraction, tool call parsing)
+- **ChatOptions merge tests**: 10 tests verifying option precedence behavior
+- **Security documentation**: `docs/security.md` covering security model and best practices
+
+### Fixed
+- **`options.extra` parameter injection**: Extra dict keys that conflict with core request parameters are now ignored with a warning (all providers)
+- **`max_tokens=0` boundary bug**: Setting `max_tokens=0` is now correctly passed to all providers instead of being silently ignored
+- **`_stream()` protocol signature**: Protocol method is now correctly marked `async`
+
+### Changed
+- **`ollama` moved to optional dependency**: Install with `casual-llm[ollama]` — core package only requires pydantic and httpx
+- **Documentation overhaul**: All docs, guides, and examples updated for current Client/Model/ChatOptions API
+
 ## [0.6.0] - 2026-02-19
 
 ### Added
+- **`ChatOptions` dataclass**: Unified configuration for chat/stream requests replacing individual parameters. Supports temperature, max_tokens, tools, response_format, top_p, stop, tool_choice, frequency_penalty, presence_penalty, seed, top_k, and provider-specific `extra` kwargs.
 - **`ClientConfig.name` field**: Optional client name for automatic API key lookup from environment variables. When set and no explicit `api_key` is provided, checks `{NAME.upper()}_API_KEY` env var automatically.
 - **String provider support**: `ClientConfig.provider` now accepts plain strings (e.g., `"openai"`) in addition to the `Provider` enum, with case-insensitive matching.
 
 ### Changed
+- **`Model.chat()` and `Model.stream()` signatures**: Now accept `options: ChatOptions | None` instead of individual parameters (temperature, max_tokens, tools, response_format).
+- **`LLMClient._chat()` and `LLMClient._stream()` signatures**: Now accept `options: ChatOptions` instead of individual parameters.
+- **`ModelConfig` simplified**: Now has `name` and `default_options: ChatOptions | None` (replaces temperature and extra_kwargs fields).
 - **Factory functions moved**: `create_client()` and `create_model()` moved from `casual_llm.providers` to `casual_llm.factory`. Top-level imports (`from casual_llm import create_client, create_model`) are unchanged. Direct imports from `casual_llm.providers` will need updating.
 
 ## [0.5.0] - 2026-02-06

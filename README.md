@@ -15,7 +15,7 @@ Part of the "casual" ecosystem of lightweight AI tools.
 - **Client/Model Separation** - Configure API connections once, create multiple models
 - **Protocol-based** - Uses `typing.Protocol`, no inheritance required
 - **Multi-provider** - Works with OpenAI, Anthropic (Claude), Ollama, or your custom provider
-- **Lightweight** - Minimal dependencies (pydantic, ollama, httpx)
+- **Lightweight** - Minimal dependencies (pydantic, httpx)
 - **Async-first** - Built for modern async Python
 - **Type-safe** - Full type hints with py.typed marker
 - **OpenAI-compatible** - Standard message format used across the industry
@@ -27,17 +27,16 @@ Part of the "casual" ecosystem of lightweight AI tools.
 ## Installation
 
 ```bash
-# Basic installation (includes Ollama support)
+# Core only (pydantic + httpx)
 uv add casual-llm
 
-# With OpenAI support
+# With specific providers
+uv add casual-llm[ollama]
 uv add casual-llm[openai]
-
-# With Anthropic (Claude) support
 uv add casual-llm[anthropic]
 
 # With all providers
-uv add casual-llm[openai,anthropic]
+uv add casual-llm[ollama,openai,anthropic]
 
 # Or using pip
 pip install casual-llm[openai,anthropic]
@@ -113,7 +112,7 @@ tool_msg = ToolResultMessage(
 
 | Feature | casual-llm | LangChain | litellm |
 |---------|-----------|-----------|---------|
-| **Dependencies** | 3 (pydantic, ollama, httpx) | 100+ | 50+ |
+| **Dependencies** | 2 core (pydantic, httpx) | 100+ | 50+ |
 | **Protocol-based** | Yes | No | No |
 | **Type-safe** | Full typing | Partial | Partial |
 | **Message models** | Included | Separate | None |

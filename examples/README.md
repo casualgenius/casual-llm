@@ -11,7 +11,7 @@ These examples demonstrate basic usage with each provider.
 Basic usage with Ollama (local LLM server).
 
 **What it demonstrates:**
-- Creating an Ollama provider
+- Creating an Ollama client and model
 - Simple text responses
 - JSON-formatted responses
 - Pydantic model-based structured output
@@ -37,7 +37,7 @@ uv run python examples/basic_ollama.py
 Basic usage with OpenAI API (GPT-4, GPT-3.5, etc.).
 
 **What it demonstrates:**
-- Creating an OpenAI provider
+- Creating an OpenAI client and model
 - Simple text responses
 - JSON-formatted responses
 - Pydantic model-based structured output
@@ -64,7 +64,7 @@ uv run python examples/basic_openai.py
 Basic usage with Anthropic API (Claude models).
 
 **What it demonstrates:**
-- Creating an Anthropic provider
+- Creating an Anthropic client and model
 - Simple text responses
 - JSON-formatted responses
 - Pydantic model-based structured output
@@ -216,14 +216,14 @@ OPENAI_API_KEY=sk-... uv run python examples/stream_example.py
 
 | Feature | Ollama | OpenAI | Anthropic |
 |---------|--------|--------|-----------|
-| **Text responses** | ✅ | ✅ | ✅ |
-| **JSON mode** | ✅ | ✅ | ✅ (via system prompt) |
-| **Pydantic models** | ✅ | ✅ | ✅ (via JSON schema) |
-| **Tool calling** | ✅ | ✅ | ✅ |
-| **Vision (URL)** | ✅* | ✅ | ✅ |
-| **Vision (base64)** | ✅ | ✅ | ✅ |
-| **Streaming** | ✅ | ✅ | ✅ |
-| **Token usage** | ✅ | ✅ | ✅ |
+| **Text responses** | Yes | Yes | Yes |
+| **JSON mode** | Yes | Yes | Yes (via system prompt) |
+| **Pydantic models** | Yes | Yes | Yes (via JSON schema) |
+| **Tool calling** | Yes | Yes | Yes |
+| **Vision (URL)** | Yes* | Yes | Yes |
+| **Vision (base64)** | Yes | Yes | Yes |
+| **Streaming** | Yes | Yes | Yes |
+| **Token usage** | Yes | Yes | Yes |
 | **Cost** | Free (local) | Paid | Paid |
 
 \* Ollama requires client-side image fetching (handled automatically by casual-llm)
@@ -232,36 +232,22 @@ OPENAI_API_KEY=sk-... uv run python examples/stream_example.py
 
 ## Common Patterns
 
-### Setting Up a Provider
+### Setting Up a Client and Model
 
 ```python
-from casual_llm import create_provider, ModelConfig, Provider
+from casual_llm import OllamaClient, OpenAIClient, AnthropicClient, Model, ChatOptions
 
 # Ollama (local)
-config = ModelConfig(
-    name="qwen2.5:7b-instruct",
-    provider=Provider.OLLAMA,
-    base_url="http://localhost:11434",
-    temperature=0.7
-)
+client = OllamaClient(host="http://localhost:11434")
+model = Model(client, name="qwen2.5:7b-instruct", default_options=ChatOptions(temperature=0.7))
 
 # OpenAI
-config = ModelConfig(
-    name="gpt-4o-mini",
-    provider=Provider.OPENAI,
-    api_key="sk-...",  # or set OPENAI_API_KEY env var
-    temperature=0.7
-)
+client = OpenAIClient(api_key="sk-...")  # or set OPENAI_API_KEY env var
+model = Model(client, name="gpt-4o-mini", default_options=ChatOptions(temperature=0.7))
 
 # Anthropic
-config = ModelConfig(
-    name="claude-3-5-sonnet-20241022",
-    provider=Provider.ANTHROPIC,
-    api_key="sk-ant-...",  # or set ANTHROPIC_API_KEY env var
-    temperature=0.7
-)
-
-provider = create_provider(config)
+client = AnthropicClient(api_key="sk-ant-...")  # or set ANTHROPIC_API_KEY env var
+model = Model(client, name="claude-sonnet-4-20250514", default_options=ChatOptions(temperature=0.7))
 ```
 
 ### Basic Chat
@@ -270,7 +256,7 @@ provider = create_provider(config)
 from casual_llm import UserMessage
 
 messages = [UserMessage(content="Hello!")]
-response = await provider.chat(messages, response_format="text")
+response = await model.chat(messages)
 print(response.content)
 ```
 
@@ -279,7 +265,7 @@ print(response.content)
 ```python
 messages = [UserMessage(content="Write a poem")]
 
-async for chunk in provider.stream(messages):
+async for chunk in model.stream(messages):
     if chunk.content:
         print(chunk.content, end="", flush=True)
 ```
@@ -298,7 +284,7 @@ messages = [
     )
 ]
 
-response = await provider.chat(messages)
+response = await model.chat(messages)
 print(response.content)
 ```
 
@@ -306,6 +292,7 @@ print(response.content)
 
 ```python
 from pydantic import BaseModel
+from casual_llm import ChatOptions
 
 class Person(BaseModel):
     name: str
@@ -313,7 +300,7 @@ class Person(BaseModel):
     occupation: str
 
 messages = [UserMessage(content="Tell me about a software engineer")]
-response = await provider.chat(messages, response_format=Person)
+response = await model.chat(messages, ChatOptions(response_format=Person))
 print(response.content)  # Valid JSON matching Person schema
 ```
 
@@ -321,11 +308,11 @@ print(response.content)  # Valid JSON matching Person schema
 
 ## Tips
 
-1. **Start with basic examples** - Get familiar with the provider patterns first
+1. **Start with basic examples** - Get familiar with the client/model patterns first
 2. **Use environment variables** - Keep API keys out of your code
-3. **Check usage** - Use `provider.get_usage()` to monitor token consumption
+3. **Check usage** - Use `model.get_usage()` to monitor token consumption
 4. **Try streaming** - Provides better UX for long responses
-5. **Experiment with temperature** - Higher values (0.7-1.0) = more creative, lower (0.0-0.3) = more focused
+5. **Use ChatOptions presets** - Define reusable option presets for common configurations
 6. **Use Pydantic models** - Great for structured data extraction and validation
 
 ---
@@ -361,9 +348,10 @@ echo $OPENAI_API_KEY
 
 ```bash
 # Install with all providers
-uv add casual-llm[openai,anthropic]
+uv add casual-llm[ollama,openai,anthropic]
 
 # Or separately
+uv add casual-llm[ollama]
 uv add casual-llm[openai]
 uv add casual-llm[anthropic]
 ```
@@ -373,6 +361,6 @@ uv add casual-llm[anthropic]
 ## More Information
 
 - **Main README**: [../README.md](../README.md)
-- **API Reference**: See README.md
+- **API Reference**: [../docs/api-reference.md](../docs/api-reference.md)
 - **GitHub**: https://github.com/casualgenius/casual-llm
 - **Issues**: https://github.com/casualgenius/casual-llm/issues

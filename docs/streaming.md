@@ -23,21 +23,16 @@ async for chunk in model.stream(messages):
 print()  # New line after streaming
 ```
 
-## Checking Usage After Streaming
+## Streaming with Options
 
-Usage statistics are available after the stream completes:
+Pass `ChatOptions` to control generation parameters:
 
 ```python
-async for chunk in model.stream(messages):
+from casual_llm import ChatOptions
+
+async for chunk in model.stream(messages, ChatOptions(temperature=0.9, max_tokens=500)):
     if chunk.content:
         print(chunk.content, end="", flush=True)
-
-print()
-
-# Check usage after streaming
-usage = model.get_usage()
-if usage:
-    print(f"\nTokens used: {usage.total_tokens}")
 ```
 
 ## StreamChunk Object
@@ -46,7 +41,7 @@ Each chunk contains:
 
 ```python
 class StreamChunk:
-    content: str | None       # Text content of this chunk
+    content: str              # Text content of this chunk
     finish_reason: str | None # Reason for completion, or None while streaming
 ```
 
@@ -93,10 +88,6 @@ async def main():
             print(chunk.content, end="", flush=True)
 
     print()
-
-    usage = model.get_usage()
-    if usage:
-        print(f"Tokens used: {usage.total_tokens}")
 
 if __name__ == "__main__":
     asyncio.run(main())

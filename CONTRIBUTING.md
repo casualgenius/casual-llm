@@ -8,7 +8,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.10 or higher
 - [uv](https://github.com/astral-sh/uv) package manager
 
 ### Setup
@@ -21,7 +21,7 @@ cd casual-llm
 # Install dependencies with uv
 uv sync
 
-# Install with development dependencies
+# Install with development dependencies and all providers
 uv sync --all-extras
 ```
 
@@ -83,17 +83,16 @@ uv run mypy src/casual_llm
 uv run pytest tests/
 ```
 
-## Running Examples
+## Architecture Overview
 
-```bash
-# Run Ollama example (requires Ollama installed)
-uv run python examples/basic_ollama.py
+casual-llm uses a **Client/Model/ChatOptions** architecture:
 
-# Run OpenAI example (requires OPENAI_API_KEY)
-uv run python examples/basic_openai.py
+- **Client** (`LLMClient` protocol) — manages API connections (`OpenAIClient`, `OllamaClient`, `AnthropicClient`)
+- **Model** — wraps a client with model-specific configuration, provides `chat()` and `stream()`
+- **ChatOptions** — dataclass controlling per-request behavior (temperature, tools, format, etc.)
 
-# Run message formatting example (no dependencies)
-uv run python examples/message_formatting.py
+```
+User code → Model.chat(messages, options) → Client._chat(model, messages, options) → Provider API
 ```
 
 ## Contribution Guidelines
@@ -101,9 +100,9 @@ uv run python examples/message_formatting.py
 ### Before Submitting a PR
 
 1. **Write tests** - All new features should include tests
-2. **Update documentation** - Update README.md if adding new features
+2. **Update documentation** - Update relevant docs if adding new features
 3. **Format code** - Run black and ruff
-4. **Type hints** - Add type hints to all new code
+4. **Type hints** - Add type hints to all new code (Python 3.10+ syntax)
 5. **Run tests** - Ensure all tests pass
 
 ### PR Process
@@ -121,10 +120,10 @@ uv run python examples/message_formatting.py
 Use clear, descriptive commit messages:
 
 ```
-Add retry logic to OpenAI provider
+feat: add retry logic to OpenAI client
 
 - Implement exponential backoff for transient failures
-- Add max_retries parameter to create_provider()
+- Add max_retries parameter to OpenAIClient
 - Update tests to cover retry scenarios
 ```
 
@@ -133,30 +132,59 @@ Add retry logic to OpenAI provider
 To add a new LLM provider:
 
 1. Create `src/casual_llm/providers/your_provider.py`
-2. Implement the `LLMProvider` protocol
-3. Add to `src/casual_llm/providers/__init__.py`
-4. Update `create_provider()` factory function
-5. Add tests in `tests/test_your_provider.py`
-6. Add example in `examples/basic_your_provider.py`
-7. Update README.md with usage example
+2. Implement the `LLMClient` protocol (`_chat` and `_stream` methods)
+3. Create message converter in `src/casual_llm/message_converters/your_provider.py`
+4. Create tool converter in `src/casual_llm/tool_converters/your_provider.py`
+5. Add to `src/casual_llm/providers/__init__.py`
+6. Update `create_client()` factory in `src/casual_llm/factory.py`
+7. Add tests in `tests/test_your_provider.py`
+8. Add example in `examples/basic_your_provider.py`
+9. Update documentation
 
 ### Example Provider Template
 
 ```python
-from typing import List, Literal, Optional
-from casual_llm.providers.base import LLMMessage
+from __future__ import annotations
 
-class YourProvider:
-    """Your LLM provider implementation."""
+from typing import Any, AsyncIterator
 
-    async def generate(
-        self,
-        messages: List[LLMMessage],
-        response_format: Literal["json", "text"] = "text",
-        max_tokens: Optional[int] = None,
-    ) -> str:
-        # Your implementation here
+from casual_llm.config import ChatOptions
+from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
+from casual_llm.usage import Usage
+
+
+class YourClient:
+    """Your LLM client implementation."""
+
+    def __init__(self, api_key: str | None = None, timeout: float = 60.0):
+        # Initialize your SDK client
         ...
+
+    async def _chat(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        options: ChatOptions,
+    ) -> tuple[AssistantMessage, Usage | None]:
+        # 1. Convert messages to provider format
+        # 2. Build request kwargs from options
+        # 3. Call your LLM API
+        # 4. Parse response into AssistantMessage
+        # 5. Extract usage statistics
+        # 6. Return (AssistantMessage, Usage)
+        ...
+
+    async def _stream(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        options: ChatOptions,
+    ) -> AsyncIterator[StreamChunk]:
+        # 1. Convert messages to provider format
+        # 2. Call your LLM API with streaming
+        # 3. Yield StreamChunk objects as tokens arrive
+        ...
+        yield StreamChunk(content="chunk", finish_reason=None)
 ```
 
 ## Questions?
