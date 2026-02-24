@@ -9,6 +9,7 @@ from casual_llm.messages import (
     TextContent,
     ImageContent,
 )
+from casual_llm.config import ChatOptions
 from casual_llm.message_converters.openai import (
     _convert_image_to_openai,
     _convert_user_content_to_openai,
@@ -256,7 +257,7 @@ class TestOpenAIClientVision:
     @pytest.fixture
     def model(self, client):
         """Create a Model instance for testing with gpt-4o."""
-        return Model(client, name="gpt-4o", temperature=0.7)
+        return Model(client, name="gpt-4o", default_options=ChatOptions(temperature=0.7))
 
     @pytest.mark.asyncio
     async def test_chat_with_url_image(self, client, model):

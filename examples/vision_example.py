@@ -14,6 +14,7 @@ Requirements:
 import asyncio
 import os
 from casual_llm import (
+    ChatOptions,
     OpenAIClient,
     AnthropicClient,
     OllamaClient,
@@ -50,7 +51,7 @@ async def openai_vision_example():
 
     # Create client and model
     client = OpenAIClient(api_key=OPENAI_API_KEY)
-    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
+    model = Model(client, name=OPENAI_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create a multimodal message with text and image
     messages = [
@@ -65,7 +66,7 @@ async def openai_vision_example():
     print(f"Sending image to {OPENAI_MODEL}...")
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
-    response = await model.chat(messages, response_format="text")
+    response = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"\nResponse:\n{response.content}")
 
     # Show usage
@@ -86,7 +87,7 @@ async def anthropic_vision_example():
 
     # Create client and model
     client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create a multimodal message with text and image
     messages = [
@@ -102,7 +103,7 @@ async def anthropic_vision_example():
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
     try:
-        response = await model.chat(messages, response_format="text")
+        response = await model.chat(messages, ChatOptions(response_format="text"))
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
@@ -122,7 +123,7 @@ async def ollama_vision_example():
 
     # Create client and model
     client = OllamaClient(host=OLLAMA_ENDPOINT)
-    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
+    model = Model(client, name=OLLAMA_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create a multimodal message with text and image
     messages = [
@@ -138,7 +139,7 @@ async def ollama_vision_example():
     print(f"Image URL: {SAMPLE_IMAGE_URL}")
 
     try:
-        response = await model.chat(messages, response_format="text")
+        response = await model.chat(messages, ChatOptions(response_format="text"))
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
@@ -163,7 +164,7 @@ async def openai_base64_image_example():
 
     # Create client and model
     client = OpenAIClient(api_key=OPENAI_API_KEY)
-    model = Model(client, name=OPENAI_MODEL, temperature=0.7)
+    model = Model(client, name=OPENAI_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -187,7 +188,7 @@ async def openai_base64_image_example():
     ]
 
     print("Sending base64-encoded image (happy-dog.jpg)...")
-    response = await model.chat(messages, response_format="text")
+    response = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"\nResponse:\n{response.content}")
 
     # Show usage
@@ -208,7 +209,7 @@ async def anthropic_base64_image_example():
 
     # Create client and model
     client = AnthropicClient(api_key=ANTHROPIC_API_KEY)
-    model = Model(client, name=ANTHROPIC_MODEL, temperature=0.7)
+    model = Model(client, name=ANTHROPIC_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -234,7 +235,7 @@ async def anthropic_base64_image_example():
     print("Sending base64-encoded image (happy-dog.jpg)...")
 
     try:
-        response = await model.chat(messages, response_format="text")
+        response = await model.chat(messages, ChatOptions(response_format="text"))
         print(f"\nResponse:\n{response.content}")
 
         # Show usage
@@ -254,7 +255,7 @@ async def ollama_base64_image_example():
 
     # Create client and model
     client = OllamaClient(host=OLLAMA_ENDPOINT)
-    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
+    model = Model(client, name=OLLAMA_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Load and encode the happy-dog.jpg image
     import base64
@@ -280,7 +281,7 @@ async def ollama_base64_image_example():
     print("Sending base64-encoded image (happy-dog.jpg)...")
 
     try:
-        response = await model.chat(messages, response_format="text")
+        response = await model.chat(messages, ChatOptions(response_format="text"))
         print(f"\nResponse:\n{response.content}")
 
         # Show usage

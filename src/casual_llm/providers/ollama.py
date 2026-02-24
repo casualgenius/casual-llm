@@ -5,12 +5,12 @@ Ollama LLM client using the official ollama library.
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator, Literal
+from typing import Any, AsyncIterator
 from ollama import AsyncClient
 from pydantic import BaseModel
 
+from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
-from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 from casual_llm.tool_converters import tools_to_ollama
 from casual_llm.message_converters import (
@@ -62,14 +62,73 @@ class OllamaClient:
 
         logger.info("OllamaClient initialized: host=%s", host)
 
+    async def _build_request_kwargs(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        options: ChatOptions,
+        stream: bool = False,
+    ) -> dict[str, Any]:
+        """Build the request kwargs dict for the Ollama API call."""
+        # Convert messages to Ollama format using converter (async for image support)
+        chat_messages = await convert_messages_to_ollama(messages)
+        logger.debug("Converted %d messages to Ollama format", len(messages))
+
+        # Build Ollama options dict
+        ollama_options: dict[str, Any] = {}
+        if options.temperature is not None:
+            ollama_options["temperature"] = options.temperature
+        if options.max_tokens:
+            ollama_options["num_predict"] = options.max_tokens
+        if options.top_p is not None:
+            ollama_options["top_p"] = options.top_p
+        if options.top_k is not None:
+            ollama_options["top_k"] = options.top_k
+        if options.frequency_penalty is not None:
+            ollama_options["frequency_penalty"] = options.frequency_penalty
+        if options.presence_penalty is not None:
+            ollama_options["presence_penalty"] = options.presence_penalty
+        if options.seed is not None:
+            ollama_options["seed"] = options.seed
+        if options.stop is not None:
+            ollama_options["stop"] = options.stop
+
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": chat_messages,
+            "stream": stream,
+            "options": ollama_options,
+        }
+
+        # Handle response_format
+        if options.response_format == "json":
+            request_kwargs["format"] = "json"
+        elif isinstance(options.response_format, type) and issubclass(
+            options.response_format, BaseModel
+        ):
+            schema = options.response_format.model_json_schema()
+            request_kwargs["format"] = schema
+            logger.debug(
+                "Using JSON Schema from Pydantic model: %s",
+                options.response_format.__name__,
+            )
+
+        # Add tools if provided
+        if options.tools:
+            converted_tools = tools_to_ollama(options.tools)
+            request_kwargs["tools"] = converted_tools
+            logger.debug("Added %d tools to request", len(converted_tools))
+
+        # Merge extra kwargs (provider-specific pass-through)
+        request_kwargs.update(options.extra)
+
+        return request_kwargs
+
     async def _chat(
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> tuple[AssistantMessage, Usage | None]:
         """
         Generate a chat response using Ollama.
@@ -79,11 +138,7 @@ class OllamaClient:
         Args:
             model: Model name (e.g., "qwen2.5:7b-instruct")
             messages: Conversation messages (ChatMessage format)
-            response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Returns:
             Tuple of (AssistantMessage, Usage or None)
@@ -92,40 +147,7 @@ class OllamaClient:
             ResponseError: If the request could not be fulfilled
             RequestError: If the request was invalid
         """
-        # Convert messages to Ollama format using converter (async for image support)
-        chat_messages = await convert_messages_to_ollama(messages)
-        logger.debug("Converted %d messages to Ollama format", len(messages))
-
-        # Build options
-        options: dict[str, Any] = {}
-        if temperature is not None:
-            options["temperature"] = temperature
-        if max_tokens:
-            options["num_predict"] = max_tokens
-
-        # Build request kwargs
-        request_kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": chat_messages,
-            "stream": False,
-            "options": options,
-        }
-
-        # Handle response_format: "json", "text", or Pydantic model class
-        if response_format == "json":
-            request_kwargs["format"] = "json"
-        elif isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            # Extract JSON Schema from Pydantic model and pass directly to format
-            schema = response_format.model_json_schema()
-            request_kwargs["format"] = schema
-            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
-        # "text" is the default - no format parameter needed
-
-        # Add tools if provided
-        if tools:
-            converted_tools = tools_to_ollama(tools)
-            request_kwargs["tools"] = converted_tools
-            logger.debug("Added %d tools to request", len(converted_tools))
+        request_kwargs = await self._build_request_kwargs(model, messages, options)
 
         logger.debug("Generating with model %s", model)
         response = await self.client.chat(**request_kwargs)
@@ -148,8 +170,6 @@ class OllamaClient:
         tool_calls = None
         if response_message.tool_calls:
             logger.debug("Assistant requested %d tool calls", len(response_message.tool_calls))
-            # Convert ollama tool calls to our format
-            # The converter handles ID generation and argument conversion
             tool_calls = convert_tool_calls_from_ollama(response_message.tool_calls)
 
         # Return AssistantMessage and Usage
@@ -161,10 +181,7 @@ class OllamaClient:
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> AsyncIterator[StreamChunk]:
         """
         Stream a chat response from Ollama.
@@ -174,11 +191,7 @@ class OllamaClient:
         Args:
             model: Model name (e.g., "qwen2.5:7b-instruct")
             messages: Conversation messages (ChatMessage format)
-            response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Yields:
             StreamChunk objects containing content fragments as tokens are generated.
@@ -187,40 +200,7 @@ class OllamaClient:
             ResponseError: If the request could not be fulfilled
             RequestError: If the request was invalid
         """
-        # Convert messages to Ollama format using converter (async for image support)
-        chat_messages = await convert_messages_to_ollama(messages)
-        logger.debug("Converted %d messages to Ollama format for streaming", len(messages))
-
-        # Build options
-        options: dict[str, Any] = {}
-        if temperature is not None:
-            options["temperature"] = temperature
-        if max_tokens:
-            options["num_predict"] = max_tokens
-
-        # Build request kwargs
-        request_kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": chat_messages,
-            "stream": True,
-            "options": options,
-        }
-
-        # Handle response_format: "json", "text", or Pydantic model class
-        if response_format == "json":
-            request_kwargs["format"] = "json"
-        elif isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            # Extract JSON Schema from Pydantic model and pass directly to format
-            schema = response_format.model_json_schema()
-            request_kwargs["format"] = schema
-            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
-        # "text" is the default - no format parameter needed
-
-        # Add tools if provided
-        if tools:
-            converted_tools = tools_to_ollama(tools)
-            request_kwargs["tools"] = converted_tools
-            logger.debug("Added %d tools to streaming request", len(converted_tools))
+        request_kwargs = await self._build_request_kwargs(model, messages, options, stream=True)
 
         logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat(**request_kwargs)

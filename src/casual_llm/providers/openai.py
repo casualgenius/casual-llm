@@ -5,12 +5,12 @@ OpenAI LLM client (compatible with OpenAI API and compatible services).
 from __future__ import annotations
 
 import logging
-from typing import Literal, Any, AsyncIterator
+from typing import Any, AsyncIterator
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
+from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
-from casual_llm.tools import Tool
 from casual_llm.usage import Usage
 from casual_llm.tool_converters import tools_to_openai
 from casual_llm.message_converters import (
@@ -48,7 +48,6 @@ class OpenAIClient:
         base_url: str | None = None,
         organization: str | None = None,
         timeout: float = 60.0,
-        extra_kwargs: dict[str, Any] | None = None,
     ):
         """
         Initialize OpenAI client.
@@ -58,7 +57,6 @@ class OpenAIClient:
             base_url: Base URL for API (e.g., "https://openrouter.ai/api/v1")
             organization: OpenAI organization ID (optional)
             timeout: HTTP request timeout in seconds
-            extra_kwargs: Additional kwargs to pass to client.chat.completions.create()
         """
         client_kwargs: dict[str, Any] = {"timeout": timeout}
 
@@ -70,18 +68,95 @@ class OpenAIClient:
             client_kwargs["organization"] = organization
 
         self.client = AsyncOpenAI(**client_kwargs)
-        self.extra_kwargs = extra_kwargs or {}
 
         logger.info("OpenAIClient initialized: base_url=%s", base_url or "default")
+
+    def _build_request_kwargs(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        options: ChatOptions,
+        stream: bool = False,
+    ) -> dict[str, Any]:
+        """Build the request kwargs dict for the OpenAI API call."""
+        chat_messages = convert_messages_to_openai(messages)
+        logger.debug("Converted %d messages to OpenAI format", len(messages))
+
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": chat_messages,
+        }
+
+        if stream:
+            request_kwargs["stream"] = True
+
+        if options.temperature is not None:
+            request_kwargs["temperature"] = options.temperature
+
+        if options.top_p is not None:
+            request_kwargs["top_p"] = options.top_p
+
+        if options.frequency_penalty is not None:
+            request_kwargs["frequency_penalty"] = options.frequency_penalty
+
+        if options.presence_penalty is not None:
+            request_kwargs["presence_penalty"] = options.presence_penalty
+
+        if options.seed is not None:
+            request_kwargs["seed"] = options.seed
+
+        if options.stop is not None:
+            request_kwargs["stop"] = options.stop
+
+        # Handle response_format
+        if options.response_format == "json":
+            request_kwargs["response_format"] = {"type": "json_object"}
+        elif isinstance(options.response_format, type) and issubclass(
+            options.response_format, BaseModel
+        ):
+            schema = options.response_format.model_json_schema()
+            request_kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": options.response_format.__name__,
+                    "schema": schema,
+                },
+            }
+            logger.debug(
+                "Using JSON Schema from Pydantic model: %s",
+                options.response_format.__name__,
+            )
+
+        if options.max_tokens:
+            request_kwargs["max_tokens"] = options.max_tokens
+
+        # Add tools if provided
+        if options.tools:
+            converted_tools = tools_to_openai(options.tools)
+            request_kwargs["tools"] = converted_tools
+            logger.debug("Added %d tools to request", len(converted_tools))
+
+        # Handle tool_choice
+        if options.tool_choice is not None and options.tools:
+            if options.tool_choice in ("auto", "none", "required"):
+                request_kwargs["tool_choice"] = options.tool_choice
+            else:
+                # Treat as a specific tool name
+                request_kwargs["tool_choice"] = {
+                    "type": "function",
+                    "function": {"name": options.tool_choice},
+                }
+
+        # Merge extra kwargs (provider-specific pass-through)
+        request_kwargs.update(options.extra)
+
+        return request_kwargs
 
     async def _chat(
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> tuple[AssistantMessage, Usage | None]:
         """
         Generate a chat response using OpenAI API.
@@ -91,11 +166,7 @@ class OpenAIClient:
         Args:
             model: Model name (e.g., "gpt-4o-mini")
             messages: Conversation messages (ChatMessage format)
-            response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Returns:
             Tuple of (AssistantMessage, Usage or None)
@@ -103,47 +174,7 @@ class OpenAIClient:
         Raises:
             openai.OpenAIError: If request fails
         """
-        # Convert messages to OpenAI format using converter
-        chat_messages = convert_messages_to_openai(messages)
-        logger.debug("Converted %d messages to OpenAI format", len(messages))
-
-        # Build request kwargs
-        request_kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": chat_messages,
-        }
-
-        # Only add temperature if specified
-        if temperature is not None:
-            request_kwargs["temperature"] = temperature
-
-        # Handle response_format: "json", "text", or Pydantic model class
-        if response_format == "json":
-            request_kwargs["response_format"] = {"type": "json_object"}
-        elif isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            # Extract JSON Schema from Pydantic model
-            schema = response_format.model_json_schema()
-            request_kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__,
-                    "schema": schema,
-                },
-            }
-            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
-        # "text" is the default - no response_format needed
-
-        if max_tokens:
-            request_kwargs["max_tokens"] = max_tokens
-
-        # Add tools if provided
-        if tools:
-            converted_tools = tools_to_openai(tools)
-            request_kwargs["tools"] = converted_tools
-            logger.debug("Added %d tools to request", len(converted_tools))
-
-        # Merge extra kwargs
-        request_kwargs.update(self.extra_kwargs)
+        request_kwargs = self._build_request_kwargs(model, messages, options)
 
         logger.debug("Generating with model %s", model)
         response = await self.client.chat.completions.create(**request_kwargs)
@@ -178,10 +209,7 @@ class OpenAIClient:
         self,
         model: str,
         messages: list[ChatMessage],
-        response_format: Literal["json", "text"] | type[BaseModel] = "text",
-        max_tokens: int | None = None,
-        tools: list[Tool] | None = None,
-        temperature: float | None = None,
+        options: ChatOptions,
     ) -> AsyncIterator[StreamChunk]:
         """
         Stream a chat response from OpenAI API.
@@ -191,11 +219,7 @@ class OpenAIClient:
         Args:
             model: Model name (e.g., "gpt-4o-mini")
             messages: Conversation messages (ChatMessage format)
-            response_format: "json" for JSON output, "text" for plain text, or a Pydantic
-                BaseModel class for JSON Schema-based structured output.
-            max_tokens: Maximum tokens to generate (optional)
-            tools: List of tools available for the LLM to call (optional)
-            temperature: Temperature for this request (optional)
+            options: Chat options controlling response format, sampling, tools, etc.
 
         Yields:
             StreamChunk objects containing content fragments as tokens are generated.
@@ -203,48 +227,7 @@ class OpenAIClient:
         Raises:
             openai.OpenAIError: If request fails
         """
-        # Convert messages to OpenAI format using converter
-        chat_messages = convert_messages_to_openai(messages)
-        logger.debug("Converted %d messages to OpenAI format for streaming", len(messages))
-
-        # Build request kwargs
-        request_kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": chat_messages,
-            "stream": True,
-        }
-
-        # Only add temperature if specified
-        if temperature is not None:
-            request_kwargs["temperature"] = temperature
-
-        # Handle response_format: "json", "text", or Pydantic model class
-        if response_format == "json":
-            request_kwargs["response_format"] = {"type": "json_object"}
-        elif isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            # Extract JSON Schema from Pydantic model
-            schema = response_format.model_json_schema()
-            request_kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__,
-                    "schema": schema,
-                },
-            }
-            logger.debug("Using JSON Schema from Pydantic model: %s", response_format.__name__)
-        # "text" is the default - no response_format needed
-
-        if max_tokens:
-            request_kwargs["max_tokens"] = max_tokens
-
-        # Add tools if provided
-        if tools:
-            converted_tools = tools_to_openai(tools)
-            request_kwargs["tools"] = converted_tools
-            logger.debug("Added %d tools to streaming request", len(converted_tools))
-
-        # Merge extra kwargs
-        request_kwargs.update(self.extra_kwargs)
+        request_kwargs = self._build_request_kwargs(model, messages, options, stream=True)
 
         logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat.completions.create(**request_kwargs)

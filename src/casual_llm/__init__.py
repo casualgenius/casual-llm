@@ -27,7 +27,7 @@ Example usage:
 __version__ = "0.6.0"
 
 # Configuration
-from casual_llm.config import ClientConfig, ModelConfig, Provider
+from casual_llm.config import ChatOptions, ClientConfig, ModelConfig, Provider
 
 # Client protocol and implementations
 from casual_llm.providers import (
@@ -89,6 +89,7 @@ __all__ = [
     # Version
     "__version__",
     # Configuration
+    "ChatOptions",
     "ClientConfig",
     "ModelConfig",
     "Provider",

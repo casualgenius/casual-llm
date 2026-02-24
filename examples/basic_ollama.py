@@ -8,7 +8,7 @@ Requirements:
 
 import asyncio
 import os
-from casual_llm import OllamaClient, Model, UserMessage
+from casual_llm import ChatOptions, OllamaClient, Model, UserMessage
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
@@ -19,14 +19,14 @@ async def main():
     client = OllamaClient(host=OLLAMA_ENDPOINT)
 
     # Create model (configure model name and parameters)
-    model = Model(client, name=OLLAMA_MODEL, temperature=0.7)
+    model = Model(client, name=OLLAMA_MODEL, default_options=ChatOptions(temperature=0.7))
 
     # Create a simple message
     messages = [UserMessage(content="What is the capital of France?")]
 
     # Generate response
     print("Generating response...")
-    response = await model.chat(messages, response_format="text")
+    response = await model.chat(messages, ChatOptions(response_format="text"))
     print(f"Response: {response.content}")
 
     # Check usage statistics
@@ -43,7 +43,7 @@ async def main():
         UserMessage(content="List the 3 largest capital cities as JSON with their population.")
     ]
 
-    json_response = await model.chat(json_messages, response_format="json")
+    json_response = await model.chat(json_messages, ChatOptions(response_format="json"))
     print(f"JSON Response: {json_response.content}")
 
     # Check usage statistics for JSON response
@@ -57,10 +57,10 @@ async def main():
     # Example: Multiple models using the same client
     print("\n--- Multi-Model Example ---")
     # You can create multiple models using the same client connection
-    # model2 = Model(client, name="codellama", temperature=0.5)
+    # model2 = Model(client, name="codellama", default_options=ChatOptions(temperature=0.5))
     # This allows efficient reuse of the client connection
     print("You can create multiple Model instances from a single OllamaClient!")
-    print("Example: Model(client, name='codellama', temperature=0.5)")
+    print("Example: Model(client, name='codellama', default_options=ChatOptions(temperature=0.5))")
 
 
 if __name__ == "__main__":

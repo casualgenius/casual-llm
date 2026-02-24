@@ -12,6 +12,7 @@ Shows how to:
 import asyncio
 import json
 from casual_llm import (
+    ChatOptions,
     Tool,
     ToolParameter,
     UserMessage,
@@ -143,7 +144,7 @@ async def run_tool_calling_example():
 
     # Initial request with tools
     print("Sending request to LLM with tools...")
-    response = await model.chat(messages, tools=tools)
+    response = await model.chat(messages, ChatOptions(tools=tools))
     print()
 
     # Check if LLM wants to call tools
@@ -181,7 +182,7 @@ async def run_tool_calling_example():
 
         # Send tool results back to LLM for final response
         print("Sending tool results back to LLM...")
-        final_response = await model.chat(messages, tools=tools)
+        final_response = await model.chat(messages, ChatOptions(tools=tools))
         print()
 
         print("Assistant (final response):")
