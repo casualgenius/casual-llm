@@ -5,9 +5,13 @@ These models follow the OpenAI chat completion API format and can be used
 with any provider that implements the LLMProvider protocol.
 """
 
+from __future__ import annotations
+
 from typing import Literal, TypeAlias
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from casual_llm.usage import Usage
 
 
 class TextContent(BaseModel):
@@ -39,6 +43,16 @@ class ImageContent(BaseModel):
     """URL string or dict with {type: "base64", data: "..."} format."""
     media_type: str = "image/jpeg"
     """MIME type of the image (e.g., image/jpeg, image/png, image/gif, image/webp)."""
+
+    @field_validator("media_type")
+    @classmethod
+    def _validate_media_type(cls, v: str) -> str:
+        if not v.startswith("image/"):
+            raise ValueError(
+                f"media_type must be an image MIME type (got {v!r}). "
+                f"Expected format: image/jpeg, image/png, image/gif, image/webp, etc."
+            )
+        return v
 
 
 class AssistantToolCallFunction(BaseModel):
@@ -101,10 +115,15 @@ class UserMessage(BaseModel):
 
 
 class StreamChunk(BaseModel):
-    """A chunk of streamed response content from an LLM provider."""
+    """A chunk of streamed response content from an LLM provider.
+
+    The optional ``usage`` field is populated on the final chunk by providers
+    that report token usage during streaming.
+    """
 
     content: str
     finish_reason: str | None = None
+    usage: Usage | None = None
 
 
 ChatMessage: TypeAlias = AssistantMessage | SystemMessage | ToolResultMessage | UserMessage

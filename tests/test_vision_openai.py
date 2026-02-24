@@ -430,12 +430,22 @@ class TestOpenAIClientVision:
             """Mock async generator that yields stream chunks."""
             chunks = [
                 MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="I see"), finish_reason=None)]
+                    choices=[MagicMock(delta=MagicMock(content="I see"), finish_reason=None)],
+                    usage=None,
                 ),
                 MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content=" a cat"), finish_reason=None)]
+                    choices=[MagicMock(delta=MagicMock(content=" a cat"), finish_reason=None)],
+                    usage=None,
                 ),
-                MagicMock(choices=[MagicMock(delta=MagicMock(content="."), finish_reason="stop")]),
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="."), finish_reason="stop")],
+                    usage=None,
+                ),
+                # Final usage chunk
+                MagicMock(
+                    choices=[],
+                    usage=MagicMock(prompt_tokens=20, completion_tokens=4),
+                ),
             ]
             for chunk in chunks:
                 yield chunk
@@ -459,11 +469,12 @@ class TestOpenAIClientVision:
             async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
-            # Verify we got chunks
-            assert len(collected_chunks) == 3
-            assert collected_chunks[0].content == "I see"
-            assert collected_chunks[1].content == " a cat"
-            assert collected_chunks[2].content == "."
+            # Verify content chunks
+            content_chunks = [c for c in collected_chunks if c.content]
+            assert len(content_chunks) == 3
+            assert content_chunks[0].content == "I see"
+            assert content_chunks[1].content == " a cat"
+            assert content_chunks[2].content == "."
 
             # Verify stream=True and vision content was passed
             call_kwargs = mock_create.call_args.kwargs

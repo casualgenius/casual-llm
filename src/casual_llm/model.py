@@ -179,11 +179,13 @@ class Model:
             messages=messages,
             options=merged,
         ):
+            if chunk.usage is not None:
+                self._last_usage = chunk.usage
             yield chunk
 
     def get_usage(self) -> Usage | None:
         """
-        Get token usage statistics from the last chat() call.
+        Get token usage statistics from the last chat() or stream() call.
 
         Returns:
             Usage object with prompt_tokens, completion_tokens, and total_tokens,

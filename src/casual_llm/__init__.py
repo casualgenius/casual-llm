@@ -64,8 +64,11 @@ from casual_llm.tools import Tool, ToolParameter
 # Usage tracking
 from casual_llm.usage import Usage
 
-# Tool converters
-from casual_llm.tool_converters import (
+# Utilities
+from casual_llm.utils.image import ImageFetchError
+
+# Tool converters (importable for backward compatibility, not public API)
+from casual_llm.tool_converters import (  # noqa: F401
     tool_to_ollama,
     tools_to_ollama,
     tool_to_openai,
@@ -74,8 +77,8 @@ from casual_llm.tool_converters import (
     tools_to_anthropic,
 )
 
-# Message converters
-from casual_llm.message_converters import (
+# Message converters (importable for backward compatibility, not public API)
+from casual_llm.message_converters import (  # noqa: F401
     convert_messages_to_openai,
     convert_messages_to_ollama,
     convert_messages_to_anthropic,
@@ -119,19 +122,6 @@ __all__ = [
     "ToolParameter",
     # Usage
     "Usage",
-    # Tool converters
-    "tool_to_ollama",
-    "tools_to_ollama",
-    "tool_to_openai",
-    "tools_to_openai",
-    "tool_to_anthropic",
-    "tools_to_anthropic",
-    # Message converters
-    "convert_messages_to_openai",
-    "convert_messages_to_ollama",
-    "convert_messages_to_anthropic",
-    "convert_tool_calls_from_openai",
-    "convert_tool_calls_from_ollama",
-    "convert_tool_calls_from_anthropic",
-    "extract_system_message",
+    # Utilities
+    "ImageFetchError",
 ]

@@ -80,6 +80,14 @@ class ClientConfig:
                     f"Unknown provider: {self.provider!r}. " f"Valid providers: {valid}"
                 ) from None
 
+    def __repr__(self) -> str:
+        masked_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else None
+        return (
+            f"ClientConfig(provider={self.provider!r}, name={self.name!r}, "
+            f"base_url={self.base_url!r}, api_key={masked_key!r}, "
+            f"timeout={self.timeout!r})"
+        )
+
 
 @dataclass
 class ChatOptions:

@@ -89,7 +89,9 @@ class AnthropicClient:
         request_kwargs: dict[str, Any] = {
             "model": model,
             "messages": anthropic_messages,
-            "max_tokens": options.max_tokens or DEFAULT_MAX_TOKENS,
+            "max_tokens": (
+                options.max_tokens if options.max_tokens is not None else DEFAULT_MAX_TOKENS
+            ),
         }
 
         # Add system message if present
@@ -157,7 +159,14 @@ class AnthropicClient:
                 }
 
         # Merge extra kwargs (provider-specific pass-through)
-        request_kwargs.update(options.extra)
+        # Only add keys that don't conflict with core parameters
+        for key, value in options.extra.items():
+            if key not in request_kwargs:
+                request_kwargs[key] = value
+            else:
+                logger.warning(
+                    "Ignoring extra key %r that conflicts with a core request parameter", key
+                )
 
         return request_kwargs
 
@@ -252,9 +261,15 @@ class AnthropicClient:
                 if event.type == "content_block_delta":
                     if hasattr(event.delta, "text"):
                         yield StreamChunk(content=event.delta.text, finish_reason=None)
-                # Handle message stop event
-                elif event.type == "message_stop":
-                    # Anthropic uses stop_reason in the final message
-                    pass
+
+            # After iteration, get the final accumulated message for usage
+            final_message = await stream.get_final_message()
+            usage: Usage | None = None
+            if final_message.usage:
+                usage = Usage(
+                    prompt_tokens=final_message.usage.input_tokens,
+                    completion_tokens=final_message.usage.output_tokens,
+                )
+            yield StreamChunk(content="", finish_reason="stop", usage=usage)
 
         logger.debug("Stream completed")

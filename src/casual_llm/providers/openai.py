@@ -127,7 +127,7 @@ class OpenAIClient:
                 options.response_format.__name__,
             )
 
-        if options.max_tokens:
+        if options.max_tokens is not None:
             request_kwargs["max_tokens"] = options.max_tokens
 
         # Add tools if provided
@@ -148,7 +148,14 @@ class OpenAIClient:
                 }
 
         # Merge extra kwargs (provider-specific pass-through)
-        request_kwargs.update(options.extra)
+        # Only add keys that don't conflict with core parameters
+        for key, value in options.extra.items():
+            if key not in request_kwargs:
+                request_kwargs[key] = value
+            else:
+                logger.warning(
+                    "Ignoring extra key %r that conflicts with a core request parameter", key
+                )
 
         return request_kwargs
 
@@ -228,15 +235,29 @@ class OpenAIClient:
             openai.OpenAIError: If request fails
         """
         request_kwargs = self._build_request_kwargs(model, messages, options, stream=True)
+        # Request usage stats in the final streamed chunk
+        request_kwargs["stream_options"] = {"include_usage": True}
 
         logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat.completions.create(**request_kwargs)
 
+        usage: Usage | None = None
         async for chunk in stream:
+            # The final chunk carries usage data (no choices)
+            if hasattr(chunk, "usage") and chunk.usage is not None:
+                usage = Usage(
+                    prompt_tokens=chunk.usage.prompt_tokens,
+                    completion_tokens=chunk.usage.completion_tokens,
+                )
+
             # Extract content from the delta if present
             if chunk.choices and chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
                 finish_reason = chunk.choices[0].finish_reason
                 yield StreamChunk(content=content, finish_reason=finish_reason)
+
+        # Yield a final empty chunk with usage if we captured it
+        if usage is not None:
+            yield StreamChunk(content="", finish_reason="stop", usage=usage)
 
         logger.debug("Stream completed")

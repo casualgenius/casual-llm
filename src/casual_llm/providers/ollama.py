@@ -6,7 +6,12 @@ from __future__ import annotations
 
 import logging
 from typing import Any, AsyncIterator
-from ollama import AsyncClient
+
+try:
+    from ollama import AsyncClient
+except ImportError:
+    AsyncClient = None  # type: ignore[assignment, misc]
+
 from pydantic import BaseModel
 
 from casual_llm.config import ChatOptions
@@ -54,6 +59,12 @@ class OllamaClient:
             host: Ollama server URL (e.g., "http://localhost:11434")
             timeout: HTTP request timeout in seconds
         """
+        if AsyncClient is None:
+            raise ImportError(
+                "OllamaClient requires the 'ollama' package. "
+                "Install it with: pip install 'casual-llm[ollama]'"
+            )
+
         self.host = host.rstrip("/")  # Remove trailing slashes
         self.timeout = timeout
 
@@ -78,7 +89,7 @@ class OllamaClient:
         ollama_options: dict[str, Any] = {}
         if options.temperature is not None:
             ollama_options["temperature"] = options.temperature
-        if options.max_tokens:
+        if options.max_tokens is not None:
             ollama_options["num_predict"] = options.max_tokens
         if options.top_p is not None:
             ollama_options["top_p"] = options.top_p
@@ -120,7 +131,14 @@ class OllamaClient:
             logger.debug("Added %d tools to request", len(converted_tools))
 
         # Merge extra kwargs (provider-specific pass-through)
-        request_kwargs.update(options.extra)
+        # Only add keys that don't conflict with core parameters
+        for key, value in options.extra.items():
+            if key not in request_kwargs:
+                request_kwargs[key] = value
+            else:
+                logger.warning(
+                    "Ignoring extra key %r that conflicts with a core request parameter", key
+                )
 
         return request_kwargs
 
@@ -205,12 +223,32 @@ class OllamaClient:
         logger.debug("Starting stream with model %s", model)
         stream = await self.client.chat(**request_kwargs)
 
+        usage: Usage | None = None
+        usage_emitted = False
         async for chunk in stream:
+            is_done = getattr(chunk, "done", False)
+
+            # Ollama's final chunk (done=True) contains usage counters
+            if is_done:
+                prompt_tokens = getattr(chunk, "prompt_eval_count", 0) or 0
+                completion_tokens = getattr(chunk, "eval_count", 0) or 0
+                if prompt_tokens or completion_tokens:
+                    usage = Usage(
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                    )
+
             # Extract content from the message if present
             if chunk.message and chunk.message.content:
                 content = chunk.message.content
-                # Ollama uses 'done' field to indicate completion
-                finish_reason = "stop" if getattr(chunk, "done", False) else None
-                yield StreamChunk(content=content, finish_reason=finish_reason)
+                finish_reason = "stop" if is_done else None
+                chunk_usage = usage if is_done else None
+                if chunk_usage:
+                    usage_emitted = True
+                yield StreamChunk(content=content, finish_reason=finish_reason, usage=chunk_usage)
+
+        # If usage wasn't attached to a content chunk, emit it separately
+        if usage is not None and not usage_emitted:
+            yield StreamChunk(content="", finish_reason="stop", usage=usage)
 
         logger.debug("Stream completed")

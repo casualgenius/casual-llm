@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ToolParameter(BaseModel):
@@ -33,7 +33,7 @@ class ToolParameter(BaseModel):
     anyOf: list[dict[str, Any]] | None = Field(None, description="Union type schemas")
     oneOf: list[dict[str, Any]] | None = Field(None, description="Exclusive union type schemas")
 
-    model_config = {"extra": "allow"}  # Allow additional JSON Schema fields
+    model_config = ConfigDict(extra="allow")
 
 
 class Tool(BaseModel):
