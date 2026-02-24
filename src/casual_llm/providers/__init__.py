@@ -10,12 +10,12 @@ from casual_llm.providers.ollama import OllamaClient
 try:
     from casual_llm.providers.openai import OpenAIClient
 except ImportError:
-    OpenAIClient = None  # type: ignore
+    OpenAIClient = None  # type: ignore[assignment, misc]
 
 try:
     from casual_llm.providers.anthropic import AnthropicClient
 except ImportError:
-    AnthropicClient = None  # type: ignore
+    AnthropicClient = None  # type: ignore[assignment, misc]
 
 __all__ = [
     "LLMClient",

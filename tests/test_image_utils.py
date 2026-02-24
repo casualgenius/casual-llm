@@ -90,6 +90,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         # Mock httpx.AsyncClient
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
@@ -117,6 +118,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/png; charset=utf-8"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -137,6 +139,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "text/html"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -157,6 +160,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -238,6 +242,7 @@ class TestFetchImageAsBase64:
             "content-type": "image/jpeg",
         }
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         async def mock_get(*args, **kwargs):
             return mock_response
@@ -263,6 +268,7 @@ class TestFetchImageAsBase64:
         mock_response.content = large_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         async def mock_get(*args, **kwargs):
             return mock_response
@@ -287,6 +293,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -311,6 +318,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         async def mock_get(*args, **kwargs):
             return mock_response
@@ -344,6 +352,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -367,6 +376,7 @@ class TestFetchImageAsBase64:
         mock_response.content = test_image_data
         mock_response.headers = {"content-type": "image/jpeg"}
         mock_response.raise_for_status = Mock()
+        mock_response.is_redirect = False
 
         with patch("casual_llm.utils.image.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()

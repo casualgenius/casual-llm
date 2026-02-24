@@ -6,6 +6,9 @@ them to base64 format for use in multimodal LLM messages.
 """
 
 import base64
+import ipaddress
+import logging
+from urllib.parse import urlparse
 
 try:
     import httpx
@@ -13,6 +16,8 @@ try:
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class ImageFetchError(Exception):
@@ -26,6 +31,62 @@ DEFAULT_TIMEOUT = 30.0
 
 # Maximum image size in bytes (10 MB)
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+# Allowed URL schemes
+_ALLOWED_SCHEMES = {"http", "https"}
+
+# Allowed image MIME types
+_ALLOWED_MEDIA_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "image/bmp",
+    "image/tiff",
+}
+
+
+def _validate_url(url: str) -> None:
+    """Validate that a URL is safe to fetch.
+
+    Blocks private/internal IP addresses to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate.
+
+    Raises:
+        ImageFetchError: If the URL is not safe to fetch.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        raise ImageFetchError(f"Invalid URL: {url}")
+
+    # Check scheme
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ImageFetchError(
+            f"URL scheme {parsed.scheme!r} is not allowed. "
+            f"Only {', '.join(sorted(_ALLOWED_SCHEMES))} are supported."
+        )
+
+    # Check for empty or missing hostname
+    hostname = parsed.hostname
+    if not hostname:
+        raise ImageFetchError(f"URL has no hostname: {url}")
+
+    # Block private/internal IP addresses
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            raise ImageFetchError(
+                f"URL points to a private/internal address ({hostname}), which is not allowed."
+            )
+    except ValueError:
+        # Not an IP address literal — it's a hostname, which is fine.
+        # DNS resolution to private IPs is harder to block here but
+        # we at least prevent direct IP-based SSRF.
+        pass
 
 
 async def fetch_image_as_base64(
@@ -65,22 +126,53 @@ async def fetch_image_as_base64(
             "Install it with: pip install 'httpx[http2]'"
         )
 
+    # Validate URL before fetching (SSRF prevention)
+    _validate_url(url)
+
     try:
         # Use a browser-like User-Agent and HTTP/2 to avoid being blocked by sites like Wikipedia
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
         }
-        async with httpx.AsyncClient(timeout=timeout, headers=headers, http2=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers=headers,
+            http2=True,
+            follow_redirects=False,
+        ) as client:
             response = await client.get(url)
+
+            # Handle redirects manually to validate targets
+            redirect_count = 0
+            while response.is_redirect and redirect_count < 5:
+                redirect_count += 1
+                redirect_url = str(response.next_request.url) if response.next_request else None
+                if not redirect_url:
+                    break
+                _validate_url(redirect_url)
+                response = await client.get(redirect_url)
+
+            if response.is_redirect:
+                raise ImageFetchError("Too many redirects when fetching image")
+
             response.raise_for_status()
 
-            # Check content length if available
+            # Check content length if available (before downloading body)
             content_length = response.headers.get("content-length")
-            if content_length and int(content_length) > max_size:
-                raise ImageFetchError(
-                    f"Image size ({int(content_length)} bytes) exceeds "
-                    f"maximum allowed size ({max_size} bytes)"
-                )
+            if content_length:
+                try:
+                    declared_size = int(content_length)
+                    if declared_size > max_size:
+                        raise ImageFetchError(
+                            f"Image size ({declared_size} bytes) exceeds "
+                            f"maximum allowed size ({max_size} bytes)"
+                        )
+                except ValueError:
+                    pass  # Malformed content-length, skip check
 
             # Read content and check actual size
             content = response.content
@@ -97,7 +189,6 @@ async def fetch_image_as_base64(
 
             # Validate that it looks like an image type
             if not media_type.startswith("image/"):
-                # Default to image/jpeg if content-type doesn't indicate an image
                 media_type = "image/jpeg"
 
             # Encode to base64
@@ -105,14 +196,14 @@ async def fetch_image_as_base64(
 
             return base64_data, media_type
 
+    except ImageFetchError:
+        raise
     except httpx.HTTPStatusError as e:
-        raise ImageFetchError(
-            f"HTTP error fetching image from {url}: {e.response.status_code}"
-        ) from e
-    except httpx.TimeoutException as e:
-        raise ImageFetchError(f"Timeout fetching image from {url}") from e
+        raise ImageFetchError(f"HTTP error fetching image: {e.response.status_code}") from e
+    except httpx.TimeoutException:
+        raise ImageFetchError("Timeout fetching image") from None
     except httpx.RequestError as e:
-        raise ImageFetchError(f"Error fetching image from {url}: {e}") from e
+        raise ImageFetchError(f"Error fetching image: {e}") from e
 
 
 def strip_base64_prefix(data: str) -> str:

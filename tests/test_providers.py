@@ -678,18 +678,28 @@ class TestOpenAIClient:
 
     @pytest.mark.asyncio
     async def test_stream_success(self, model):
-        """Test successful streaming with multiple chunks"""
+        """Test successful streaming with multiple chunks and usage tracking"""
 
         async def mock_stream():
             """Mock async generator that yields stream chunks in OpenAI format"""
             chunks = [
                 MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content="Hello"), finish_reason=None)]
+                    choices=[MagicMock(delta=MagicMock(content="Hello"), finish_reason=None)],
+                    usage=None,
                 ),
                 MagicMock(
-                    choices=[MagicMock(delta=MagicMock(content=" world"), finish_reason=None)]
+                    choices=[MagicMock(delta=MagicMock(content=" world"), finish_reason=None)],
+                    usage=None,
                 ),
-                MagicMock(choices=[MagicMock(delta=MagicMock(content="!"), finish_reason="stop")]),
+                MagicMock(
+                    choices=[MagicMock(delta=MagicMock(content="!"), finish_reason="stop")],
+                    usage=None,
+                ),
+                # Final chunk with usage data (no choices)
+                MagicMock(
+                    choices=[],
+                    usage=MagicMock(prompt_tokens=10, completion_tokens=3),
+                ),
             ]
             for chunk in chunks:
                 yield chunk
@@ -703,21 +713,30 @@ class TestOpenAIClient:
             async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
-            # Verify we got the expected chunks
-            assert len(collected_chunks) == 3
+            # Content chunks + final usage chunk
+            content_chunks = [c for c in collected_chunks if c.content]
+            assert len(content_chunks) == 3
             assert all(isinstance(c, StreamChunk) for c in collected_chunks)
-            assert collected_chunks[0].content == "Hello"
-            assert collected_chunks[1].content == " world"
-            assert collected_chunks[2].content == "!"
+            assert content_chunks[0].content == "Hello"
+            assert content_chunks[1].content == " world"
+            assert content_chunks[2].content == "!"
 
-            # Verify finish_reason is set on the last chunk
-            assert collected_chunks[2].finish_reason == "stop"
-            assert collected_chunks[0].finish_reason is None
-            assert collected_chunks[1].finish_reason is None
+            # Verify finish_reason is set on the last content chunk
+            assert content_chunks[2].finish_reason == "stop"
+            assert content_chunks[0].finish_reason is None
+            assert content_chunks[1].finish_reason is None
 
-            # Verify stream=True was passed
+            # Verify usage was captured
+            usage = model.get_usage()
+            assert usage is not None
+            assert usage.prompt_tokens == 10
+            assert usage.completion_tokens == 3
+            assert usage.total_tokens == 13
+
+            # Verify stream=True and stream_options were passed
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["stream"] is True
+            assert call_kwargs["stream_options"] == {"include_usage": True}
 
     @pytest.mark.asyncio
     async def test_extra_on_chat_options(self, client):

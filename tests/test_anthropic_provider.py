@@ -390,7 +390,7 @@ class TestAnthropicClient:
 
     @pytest.mark.asyncio
     async def test_stream_success(self, model):
-        """Test successful streaming with multiple chunks"""
+        """Test successful streaming with multiple chunks and usage tracking"""
 
         class MockStreamManager:
             """Mock context manager for streaming"""
@@ -421,6 +421,11 @@ class TestAnthropicClient:
                 for event in events:
                     yield event
 
+            async def get_final_message(self):
+                return MagicMock(
+                    usage=MagicMock(input_tokens=15, output_tokens=5),
+                )
+
         with patch.object(
             model._client.client.messages, "stream", return_value=MockStreamManager()
         ):
@@ -430,12 +435,20 @@ class TestAnthropicClient:
             async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
-            # Verify we got the expected chunks
-            assert len(collected_chunks) == 3
+            # Content chunks + final usage chunk
+            content_chunks = [c for c in collected_chunks if c.content]
+            assert len(content_chunks) == 3
             assert all(isinstance(c, StreamChunk) for c in collected_chunks)
-            assert collected_chunks[0].content == "Hello"
-            assert collected_chunks[1].content == " world"
-            assert collected_chunks[2].content == "!"
+            assert content_chunks[0].content == "Hello"
+            assert content_chunks[1].content == " world"
+            assert content_chunks[2].content == "!"
+
+            # Verify usage was captured
+            usage = model.get_usage()
+            assert usage is not None
+            assert usage.prompt_tokens == 15
+            assert usage.completion_tokens == 5
+            assert usage.total_tokens == 20
 
     @pytest.mark.asyncio
     async def test_stream_empty_chunks(self, model):
@@ -470,6 +483,11 @@ class TestAnthropicClient:
                 for event in events:
                     yield event
 
+            async def get_final_message(self):
+                return MagicMock(
+                    usage=MagicMock(input_tokens=8, output_tokens=2),
+                )
+
         with patch.object(
             model._client.client.messages, "stream", return_value=MockStreamManager()
         ):
@@ -479,10 +497,11 @@ class TestAnthropicClient:
             async for chunk in model.stream(messages):
                 collected_chunks.append(chunk)
 
-            # Only chunks with text content should be yielded
-            assert len(collected_chunks) == 2
-            assert collected_chunks[0].content == "Hello"
-            assert collected_chunks[1].content == " there"
+            # Content chunks + final usage chunk
+            content_chunks = [c for c in collected_chunks if c.content]
+            assert len(content_chunks) == 2
+            assert content_chunks[0].content == "Hello"
+            assert content_chunks[1].content == " there"
 
     @pytest.mark.asyncio
     async def test_stream_temperature_override(self, model):
@@ -509,6 +528,11 @@ class TestAnthropicClient:
                 ]
                 for event in events:
                     yield event
+
+            async def get_final_message(self):
+                return MagicMock(
+                    usage=MagicMock(input_tokens=5, output_tokens=1),
+                )
 
         mock_stream = MagicMock(return_value=MockStreamManager())
 

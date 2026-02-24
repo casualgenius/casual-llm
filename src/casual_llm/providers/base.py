@@ -67,7 +67,7 @@ class LLMClient(Protocol):
         """
         ...
 
-    def _stream(
+    async def _stream(
         self,
         model: str,
         messages: list[ChatMessage],
@@ -91,3 +91,4 @@ class LLMClient(Protocol):
             Provider-specific exceptions (httpx.HTTPError, openai.OpenAIError, etc.)
         """
         ...
+        yield  # type: ignore[misc]
