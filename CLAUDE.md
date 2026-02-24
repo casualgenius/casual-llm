@@ -65,7 +65,11 @@ casual-llm/
 │   ├── tool_calling.py          # Complete tool calling workflow
 │   ├── vision_example.py        # Vision/multimodal examples
 │   └── streaming_example.py     # Streaming response examples
-└── docs/                        # Documentation (future)
+├── docs/                        # Documentation
+│   ├── decisions/               # Architecture Decision Records
+│   │   └── 001-shelve-media-support.md
+│   └── ...                      # API reference, guides
+└── ...
 ```
 
 ---
@@ -775,6 +779,10 @@ Once published to PyPI:
 - Use `TextContent` for text in multimodal messages
 - Image utilities use HTTP/2 for reliable fetching from sites like Wikipedia
 - Include proper User-Agent headers to avoid bot detection
+
+### Media Output & Audio (Shelved)
+
+Image output and audio I/O support was researched and shelved (Feb 2026). See [ADR-001](docs/decisions/001-shelve-media-support.md) for details and design decisions for future implementation.
 
 ### Streaming
 
