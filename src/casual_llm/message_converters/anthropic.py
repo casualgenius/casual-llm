@@ -146,7 +146,6 @@ def extract_system_messages(messages: list[ChatMessage]) -> list[dict[str, str]]
     return blocks
 
 
-
 def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     """
     Convert casual-llm ChatMessage list to Anthropic format.

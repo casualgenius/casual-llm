@@ -86,9 +86,7 @@ def create_client(
         >>>
         >>> # With name for automatic API key lookup
         >>> config = ClientConfig(
-        ...     name="openrouter",
-        ...     provider="openai",
-        ...     base_url="https://openrouter.ai/api/v1"
+        ...     name="openrouter", provider="openai", base_url="https://openrouter.ai/api/v1"
         ... )
         >>> client = create_client(config)  # uses OPENROUTER_API_KEY env var
     """
@@ -148,7 +146,13 @@ def create_model(
         Configured Model instance
 
     Examples:
-        >>> from casual_llm import ClientConfig, ModelConfig, ChatOptions, create_client, create_model
+        >>> from casual_llm import (
+        ...     ClientConfig,
+        ...     ModelConfig,
+        ...     ChatOptions,
+        ...     create_client,
+        ...     create_model,
+        ... )
         >>>
         >>> client_config = ClientConfig(provider="openai", api_key="sk-...")
         >>> client = create_client(client_config)

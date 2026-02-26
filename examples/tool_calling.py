@@ -136,7 +136,7 @@ async def run_tool_calling_example():
             )
         ),
         UserMessage(
-            content=("What's the weather like in San Francisco and Tokyo? " "Also, what's 25 + 17?")
+            content=("What's the weather like in San Francisco and Tokyo? Also, what's 25 + 17?")
         ),
     ]
 

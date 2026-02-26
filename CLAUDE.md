@@ -109,13 +109,13 @@ uv run pytest tests/test_messages.py::test_user_message -v
 ### Code Quality
 
 ```bash
-uv run black src/ tests/ examples/
+uv run ruff format src/ tests/ examples/
 uv run ruff check src/ tests/ examples/
 uv run mypy src/casual_llm
 uv run pytest tests/
 
 # All at once
-uv run black src/ tests/ examples/ && \
+uv run ruff format src/ tests/ examples/ && \
 uv run ruff check src/ tests/ examples/ && \
 uv run mypy src/casual_llm && \
 uv run pytest tests/
@@ -363,7 +363,7 @@ class YourClient:
 
 ### Dev
 
-- `pytest`, `pytest-asyncio`, `pytest-cov`, `black`, `ruff`, `mypy`
+- `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`, `mypy`
 
 ---
 
@@ -418,7 +418,7 @@ Use `typing.Protocol` for interfaces. Don't require inheritance. Support custom 
 ```bash
 uv run pytest tests/                                    # Run tests
 uv run pytest tests/ --cov=casual_llm                   # With coverage
-uv run black src/ tests/ examples/                      # Format
+uv run ruff format src/ tests/ examples/                      # Format
 uv run ruff check src/ tests/ examples/                 # Lint
 uv run mypy src/casual_llm                              # Type check
 ```

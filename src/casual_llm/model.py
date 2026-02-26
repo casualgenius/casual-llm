@@ -34,7 +34,9 @@ class Model:
         >>> # Create multiple models using the same client
         >>> gpt4 = Model(client, name="gpt-4", default_options=ChatOptions(temperature=0.7))
         >>> gpt4o = Model(client, name="gpt-4o")
-        >>> gpt35 = Model(client, name="gpt-3.5-turbo", default_options=ChatOptions(temperature=0.5))
+        >>> gpt35 = Model(
+        ...     client, name="gpt-3.5-turbo", default_options=ChatOptions(temperature=0.5)
+        ... )
         >>>
         >>> # Use models
         >>> response = await gpt4.chat([UserMessage(content="Hello")])

@@ -48,17 +48,12 @@ class Tool(BaseModel):
         ...     name="get_weather",
         ...     description="Get current weather for a location",
         ...     parameters={
-        ...         "location": ToolParameter(
-        ...             type="string",
-        ...             description="City name"
-        ...         ),
+        ...         "location": ToolParameter(type="string", description="City name"),
         ...         "units": ToolParameter(
-        ...             type="string",
-        ...             enum=["celsius", "fahrenheit"],
-        ...             default="celsius"
-        ...         )
+        ...             type="string", enum=["celsius", "fahrenheit"], default="celsius"
+        ...         ),
         ...     },
-        ...     required=["location"]
+        ...     required=["location"],
         ... )
     """
 
@@ -105,10 +100,8 @@ class Tool(BaseModel):
         Examples:
             >>> schema = {
             ...     "type": "object",
-            ...     "properties": {
-            ...         "city": {"type": "string", "description": "City name"}
-            ...     },
-            ...     "required": ["city"]
+            ...     "properties": {"city": {"type": "string", "description": "City name"}},
+            ...     "required": ["city"],
             ... }
             >>> tool = Tool.from_input_schema("weather", "Get weather", schema)
         """
