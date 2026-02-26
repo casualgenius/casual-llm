@@ -68,6 +68,7 @@ class ClientConfig:
     api_key: str | None = None
     timeout: float = 60.0
     extra_kwargs: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 
     def __post_init__(self) -> None:
         """Coerce string provider to Provider enum."""
@@ -137,6 +138,7 @@ class ChatOptions:
     seed: int | None = None
     top_k: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 
 
 @dataclass
@@ -168,3 +170,4 @@ class ModelConfig:
 
     name: str
     default_options: ChatOptions | None = None
+    system_message_handling: Literal["passthrough", "merge"] | None = None

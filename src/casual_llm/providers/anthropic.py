@@ -15,7 +15,7 @@ from casual_llm.usage import Usage
 from casual_llm.tool_converters.anthropic import tools_to_anthropic
 from casual_llm.message_converters.anthropic import (
     convert_messages_to_anthropic,
-    extract_system_message,
+    extract_system_messages,
     convert_tool_calls_from_anthropic,
 )
 
@@ -78,8 +78,8 @@ class AnthropicClient:
         options: ChatOptions,
     ) -> dict[str, Any]:
         """Build the request kwargs dict for the Anthropic API call."""
-        # Extract system message (Anthropic uses separate system parameter)
-        system_content = extract_system_message(messages)
+        # Extract all system messages as content blocks
+        system_blocks = extract_system_messages(messages)
 
         # Convert messages to Anthropic format (excludes system messages)
         anthropic_messages = convert_messages_to_anthropic(messages)
@@ -94,9 +94,9 @@ class AnthropicClient:
             ),
         }
 
-        # Add system message if present
-        if system_content:
-            request_kwargs["system"] = system_content
+        # Add system content blocks if present
+        if system_blocks:
+            request_kwargs["system"] = system_blocks
 
         if options.temperature is not None:
             request_kwargs["temperature"] = options.temperature
@@ -113,10 +113,10 @@ class AnthropicClient:
         # Handle response_format via system prompt instructions
         if options.response_format == "json":
             json_instruction = "You must respond with valid JSON only. No other text."
-            if system_content:
-                request_kwargs["system"] = f"{system_content}\n\n{json_instruction}"
-            else:
-                request_kwargs["system"] = json_instruction
+            if system_blocks is None:
+                system_blocks = []
+            system_blocks.append({"type": "text", "text": json_instruction})
+            request_kwargs["system"] = system_blocks
             logger.debug("Added JSON response format instruction to system prompt")
         elif isinstance(options.response_format, type) and issubclass(
             options.response_format, BaseModel
@@ -127,10 +127,10 @@ class AnthropicClient:
                 f"{schema}\n\n"
                 f"Respond with JSON only. No other text."
             )
-            if system_content:
-                request_kwargs["system"] = f"{system_content}\n\n{schema_instruction}"
-            else:
-                request_kwargs["system"] = schema_instruction
+            if system_blocks is None:
+                system_blocks = []
+            system_blocks.append({"type": "text", "text": schema_instruction})
+            request_kwargs["system"] = system_blocks
             logger.debug(
                 "Using JSON Schema from Pydantic model: %s",
                 options.response_format.__name__,

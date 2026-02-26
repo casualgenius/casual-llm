@@ -16,8 +16,9 @@ from casual_llm.message_converters.ollama import (
 from casual_llm.message_converters.anthropic import (
     convert_messages_to_anthropic,
     convert_tool_calls_from_anthropic,
-    extract_system_message,
+    extract_system_messages,
 )
+from casual_llm.message_converters.utils import merge_system_messages
 
 __all__ = [
     "convert_messages_to_openai",
@@ -26,5 +27,6 @@ __all__ = [
     "convert_tool_calls_from_openai",
     "convert_tool_calls_from_ollama",
     "convert_tool_calls_from_anthropic",
-    "extract_system_message",
+    "extract_system_messages",
+    "merge_system_messages",
 ]

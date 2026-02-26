@@ -135,7 +135,8 @@ class TestAnthropicClient:
             # Verify JSON instruction was added to system prompt
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            assert "JSON" in call_kwargs["system"]
+            system_blocks = call_kwargs["system"]
+            assert any("JSON" in b["text"] for b in system_blocks)
 
     @pytest.mark.asyncio
     async def test_generate_with_conversation(self, model):
@@ -157,10 +158,11 @@ class TestAnthropicClient:
             assert isinstance(result, AssistantMessage)
             assert result.content == "Got it!"
 
-            # Verify system message was extracted and passed separately
+            # Verify system message was extracted and passed separately as content blocks
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            assert "helpful assistant" in call_kwargs["system"]
+            system_blocks = call_kwargs["system"]
+            assert any("helpful assistant" in b["text"] for b in system_blocks)
 
             # Verify messages were passed (excluding system message)
             assert "messages" in call_kwargs
@@ -281,11 +283,12 @@ class TestAnthropicClient:
             # Verify the system parameter contains the JSON Schema instruction
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            system_prompt = call_kwargs["system"]
+            system_blocks = call_kwargs["system"]
+            system_text = " ".join(b["text"] for b in system_blocks)
 
             # Verify schema details are included
-            assert "JSON" in system_prompt
-            assert "schema" in system_prompt.lower()
+            assert "JSON" in system_text
+            assert "schema" in system_text.lower()
 
     @pytest.mark.asyncio
     async def test_json_schema_nested_pydantic_model(self, model):
@@ -309,10 +312,11 @@ class TestAnthropicClient:
             # Verify the system parameter contains the nested JSON Schema
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            system_prompt = call_kwargs["system"]
+            system_blocks = call_kwargs["system"]
+            system_text = " ".join(b["text"] for b in system_blocks)
 
             # Verify schema and JSON instructions are present
-            assert "JSON" in system_prompt
+            assert "JSON" in system_text
 
     @pytest.mark.asyncio
     async def test_backward_compat_json_format(self, model):
@@ -332,7 +336,8 @@ class TestAnthropicClient:
             # Verify JSON instruction was added to system
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            assert "JSON" in call_kwargs["system"]
+            system_blocks = call_kwargs["system"]
+            assert any("JSON" in b["text"] for b in system_blocks)
 
     @pytest.mark.asyncio
     async def test_backward_compat_text_format(self, model):
@@ -353,7 +358,8 @@ class TestAnthropicClient:
             call_kwargs = mock_create.call_args.kwargs
             # System should not contain JSON instructions for text format
             if "system" in call_kwargs:
-                assert "JSON" not in call_kwargs["system"]
+                system_blocks = call_kwargs["system"]
+                assert not any("JSON" in b["text"] for b in system_blocks)
 
     @pytest.mark.asyncio
     async def test_max_tokens_passed(self, model):
@@ -652,9 +658,10 @@ class TestAnthropicClient:
             # Verify both system message and JSON instruction are in system param
             call_kwargs = mock_create.call_args.kwargs
             assert "system" in call_kwargs
-            system_prompt = call_kwargs["system"]
-            assert "helpful assistant" in system_prompt
-            assert "JSON" in system_prompt
+            system_blocks = call_kwargs["system"]
+            system_text = " ".join(b["text"] for b in system_blocks)
+            assert "helpful assistant" in system_text
+            assert "JSON" in system_text
 
     @pytest.mark.asyncio
     async def test_extra_on_chat_options(self, client):

@@ -6,8 +6,8 @@ Provides a user-friendly interface for chat and streaming with per-model usage t
 
 from __future__ import annotations
 
-from dataclasses import fields
-from typing import Any, AsyncIterator, TYPE_CHECKING
+from dataclasses import fields, replace
+from typing import Any, AsyncIterator, Literal, TYPE_CHECKING
 
 from casual_llm.config import ChatOptions
 from casual_llm.messages import ChatMessage, AssistantMessage, StreamChunk
@@ -55,6 +55,7 @@ class Model:
         client: LLMClient,
         name: str,
         default_options: ChatOptions | None = None,
+        system_message_handling: Literal["passthrough", "merge"] | None = None,
     ):
         """
         Create a new Model.
@@ -63,11 +64,29 @@ class Model:
             client: The LLM client to use (OpenAIClient, OllamaClient, etc.)
             name: The model identifier (e.g., "gpt-4", "llama3.1", "claude-3-opus")
             default_options: Default options applied to all requests (can be overridden per-call)
+            system_message_handling: How to handle multiple system messages
+                ("passthrough" or "merge"). Resolved in order: per-call > model > client > default.
         """
         self._client = client
         self.name = name
         self.default_options = default_options
+        self.system_message_handling = system_message_handling
         self._last_usage: Usage | None = None
+
+    def _resolve_system_message_handling(
+        self, options: ChatOptions
+    ) -> Literal["passthrough", "merge"] | None:
+        """
+        Resolve the effective system_message_handling setting.
+
+        Resolution chain: per-call ChatOptions > Model > Client > None (provider default).
+        """
+        if options.system_message_handling is not None:
+            return options.system_message_handling
+        if self.system_message_handling is not None:
+            return self.system_message_handling
+        val = getattr(self._client, "system_message_handling", None)
+        return val
 
     def _merge_options(self, per_call: ChatOptions | None) -> ChatOptions:
         """
@@ -130,6 +149,9 @@ class Model:
             ... )
         """
         merged = self._merge_options(options)
+        resolved = self._resolve_system_message_handling(merged)
+        if resolved is not None:
+            merged = replace(merged, system_message_handling=resolved)
         result, usage = await self._client._chat(
             model=self.name,
             messages=messages,
@@ -174,6 +196,9 @@ class Model:
             >>> full_response = "".join(chunks)
         """
         merged = self._merge_options(options)
+        resolved = self._resolve_system_message_handling(merged)
+        if resolved is not None:
+            merged = replace(merged, system_message_handling=resolved)
         async for chunk in self._client._stream(
             model=self.name,
             messages=messages,

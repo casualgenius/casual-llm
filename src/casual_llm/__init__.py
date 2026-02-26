@@ -24,7 +24,7 @@ Example usage:
     >>> print(f"Used {gpt4.get_usage().total_tokens} tokens")
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 # Configuration
 from casual_llm.config import ChatOptions, ClientConfig, ModelConfig, Provider
@@ -85,7 +85,8 @@ from casual_llm.message_converters import (  # noqa: F401
     convert_tool_calls_from_openai,
     convert_tool_calls_from_ollama,
     convert_tool_calls_from_anthropic,
-    extract_system_message,
+    extract_system_messages,
+    merge_system_messages,
 )
 
 __all__ = [

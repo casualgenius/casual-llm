@@ -144,16 +144,19 @@ class ChatOptions:
     seed: int | None = None                 # OpenAI, Ollama
     top_k: int | None = None                # Anthropic, Ollama
     extra: dict[str, Any] = field(default_factory=dict)  # Provider-specific pass-through
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 ```
 
 **`ClientConfig`** - Dataclass for client connection configuration:
 - `provider`: `Provider` enum or string ("openai", "ollama", "anthropic")
 - `name`: Optional name for automatic API key lookup (`{NAME}_API_KEY` env var)
 - `base_url`, `api_key`, `timeout`, `extra_kwargs`
+- `system_message_handling`: Optional `"passthrough"` or `"merge"`
 
 **`ModelConfig`** - Dataclass for model configuration:
 - `name`: Model identifier (e.g., "gpt-4", "llama3.1")
 - `default_options`: Optional `ChatOptions` defaults
+- `system_message_handling`: Optional `"passthrough"` or `"merge"`
 
 **`Provider`** - Enum: `OPENAI`, `OLLAMA`, `ANTHROPIC`
 
@@ -163,7 +166,7 @@ The **user-facing** class for LLM interactions:
 
 ```python
 class Model:
-    def __init__(self, client: LLMClient, name: str, default_options: ChatOptions | None = None): ...
+    def __init__(self, client: LLMClient, name: str, default_options: ChatOptions | None = None, system_message_handling: str | None = None): ...
 
     async def chat(self, messages: list[ChatMessage], options: ChatOptions | None = None) -> AssistantMessage: ...
     async def stream(self, messages: list[ChatMessage], options: ChatOptions | None = None) -> AsyncIterator[StreamChunk]: ...
@@ -172,6 +175,7 @@ class Model:
 
 - Wraps an `LLMClient` with model-specific configuration
 - Merges `default_options` with per-call `options` (per-call non-None values win)
+- Resolves `system_message_handling` chain: per-call ChatOptions > Model > Client > default
 - Tracks per-model usage statistics via `get_usage()`
 
 ### 3. LLMClient Protocol (`src/casual_llm/providers/base.py`)
@@ -214,16 +218,19 @@ All providers implement the `LLMClient` protocol. All are **optional dependencie
 - Uses official `ollama.AsyncClient`
 - Supports JSON/text/Pydantic model response formats
 - Supports tool calling, vision (client-side base64 encoding), streaming
+- Accepts `system_message_handling` for merge behavior
 
 **OpenAIClient** (`providers/openai.py`) — `pip install casual-llm[openai]`:
 - Uses `openai.AsyncOpenAI`
 - Works with OpenAI API and compatible services (OpenRouter, etc.)
 - Supports tool calling, vision (native URL/base64), streaming
+- Accepts `system_message_handling` for merge behavior
 
 **AnthropicClient** (`providers/anthropic.py`) — `pip install casual-llm[anthropic]`:
 - Uses `anthropic.AsyncAnthropic`
-- Extracts system messages to separate `system` parameter
+- Extracts all system messages to separate `system` parameter as content blocks
 - Supports tool calling, vision (native URL/base64), streaming
+- Always uses content blocks for system messages (ignores `system_message_handling`)
 
 ### 7. Factory Functions (`src/casual_llm/factory.py`)
 
@@ -240,7 +247,8 @@ def create_model(client: LLMClient, config: ModelConfig) -> Model: ...
 **Message Converters** (`message_converters/`):
 - `convert_messages_to_openai()` / `convert_messages_to_ollama()` / `convert_messages_to_anthropic()`
 - `convert_tool_calls_from_openai()` / `convert_tool_calls_from_ollama()` / `convert_tool_calls_from_anthropic()`
-- `extract_system_message()` — Anthropic-specific system message extraction
+- `extract_system_messages()` — Returns all system messages as Anthropic content block dicts
+- `merge_system_messages()` — Merges multiple SystemMessages into one (used by OpenAI/Ollama merge mode)
 
 **Tool Converters** (`tool_converters/`):
 - `tool_to_openai()` / `tools_to_openai()` — OpenAI tool format

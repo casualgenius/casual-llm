@@ -99,6 +99,7 @@ def create_client(
         return OllamaClient(
             host=host,
             timeout=config.timeout,
+            system_message_handling=config.system_message_handling,
         )
 
     elif config.provider == Provider.OPENAI:
@@ -112,6 +113,7 @@ def create_client(
             api_key=api_key,
             base_url=config.base_url,
             timeout=config.timeout,
+            system_message_handling=config.system_message_handling,
         )
 
     elif config.provider == Provider.ANTHROPIC:
@@ -158,4 +160,5 @@ def create_model(
         client=client,
         name=config.name,
         default_options=config.default_options,
+        system_message_handling=config.system_message_handling,
     )
