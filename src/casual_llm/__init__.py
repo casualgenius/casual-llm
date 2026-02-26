@@ -24,7 +24,7 @@ Example usage:
     >>> print(f"Used {gpt4.get_usage().total_tokens} tokens")
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 # Configuration
 from casual_llm.config import ChatOptions, ClientConfig, ModelConfig, Provider

@@ -11,6 +11,7 @@ Shows how to:
 
 import asyncio
 import json
+import os
 from casual_llm import (
     ChatOptions,
     Tool,
@@ -22,11 +23,11 @@ from casual_llm import (
     Model,
 )
 
-OLLAMA_HOST = "http://localhost:11434"
-OLLAMA_MODEL = "llama3.1:8b"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
 # Create client and model
-client = OllamaClient(host=OLLAMA_HOST)
+client = OllamaClient(host=OLLAMA_ENDPOINT)
 model = Model(client, name=OLLAMA_MODEL)
 
 
