@@ -286,6 +286,22 @@ class TestSystemMessageHandlingResolution:
         call_options = mock_client._chat.call_args[1]["options"]
         assert call_options.system_message_handling == "merge"
 
+    @pytest.mark.asyncio
+    async def test_resolved_injected_into_stream(self, mock_client):
+        """Resolved handling is injected into options passed to client._stream."""
+
+        async def empty_stream(**kwargs):
+            return
+            yield  # noqa: RET504 - makes this an async generator
+
+        mock_client._stream = MagicMock(side_effect=empty_stream)
+        model = Model(mock_client, name="test", system_message_handling="merge")
+        async for _ in model.stream([UserMessage(content="Hi")]):
+            pass
+
+        call_options = mock_client._stream.call_args[1]["options"]
+        assert call_options.system_message_handling == "merge"
+
 
 # ---------------------------------------------------------------------------
 # OpenAI provider merge behavior
