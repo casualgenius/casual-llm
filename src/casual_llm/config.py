@@ -45,19 +45,14 @@ class ClientConfig:
         >>> from casual_llm import ClientConfig, Provider
         >>>
         >>> # Using Provider enum
-        >>> config = ClientConfig(
-        ...     provider=Provider.OPENAI,
-        ...     api_key="sk-..."
-        ... )
+        >>> config = ClientConfig(provider=Provider.OPENAI, api_key="sk-...")
         >>>
         >>> # Using string (convenient for JSON configs)
         >>> config = ClientConfig(provider="openai", api_key="sk-...")
         >>>
         >>> # With name for automatic API key lookup
         >>> config = ClientConfig(
-        ...     name="openrouter",
-        ...     provider="openai",
-        ...     base_url="https://openrouter.ai/api/v1"
+        ...     name="openrouter", provider="openai", base_url="https://openrouter.ai/api/v1"
         ... )
         >>> # Will check OPENROUTER_API_KEY env var automatically
     """
@@ -68,6 +63,7 @@ class ClientConfig:
     api_key: str | None = None
     timeout: float = 60.0
     extra_kwargs: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 
     def __post_init__(self) -> None:
         """Coerce string provider to Provider enum."""
@@ -77,7 +73,7 @@ class ClientConfig:
             except ValueError:
                 valid = ", ".join(p.value for p in Provider)
                 raise ValueError(
-                    f"Unknown provider: {self.provider!r}. " f"Valid providers: {valid}"
+                    f"Unknown provider: {self.provider!r}. Valid providers: {valid}"
                 ) from None
 
     def __repr__(self) -> str:
@@ -137,6 +133,7 @@ class ChatOptions:
     seed: int | None = None
     top_k: int | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 
 
 @dataclass
@@ -154,17 +151,14 @@ class ModelConfig:
         >>> from casual_llm import ModelConfig, ChatOptions
         >>>
         >>> # GPT-4 configuration
-        >>> config = ModelConfig(
-        ...     name="gpt-4",
-        ...     default_options=ChatOptions(temperature=0.7)
-        ... )
+        >>> config = ModelConfig(name="gpt-4", default_options=ChatOptions(temperature=0.7))
         >>>
         >>> # Claude configuration
         >>> config = ModelConfig(
-        ...     name="claude-3-5-sonnet-latest",
-        ...     default_options=ChatOptions(temperature=0.5)
+        ...     name="claude-3-5-sonnet-latest", default_options=ChatOptions(temperature=0.5)
         ... )
     """
 
     name: str
     default_options: ChatOptions | None = None
+    system_message_handling: Literal["passthrough", "merge"] | None = None

@@ -24,52 +24,7 @@ from casual_llm.message_converters.anthropic import (
     _convert_user_content_to_anthropic,
     convert_messages_to_anthropic,
     convert_tool_calls_from_anthropic,
-    extract_system_message,
 )
-
-
-class TestExtractSystemMessage:
-    """Tests for extract_system_message edge cases."""
-
-    def test_no_system_message(self):
-        """Returns None when no system message present."""
-        messages = [UserMessage(content="Hello")]
-        assert extract_system_message(messages) is None
-
-    def test_single_system_message(self):
-        """Extracts content from a single system message."""
-        messages = [
-            SystemMessage(content="You are helpful"),
-            UserMessage(content="Hello"),
-        ]
-        assert extract_system_message(messages) == "You are helpful"
-
-    def test_multiple_system_messages_returns_first(self):
-        """Only the first system message is returned."""
-        messages = [
-            SystemMessage(content="First system"),
-            UserMessage(content="Hello"),
-            SystemMessage(content="Second system"),
-        ]
-        result = extract_system_message(messages)
-        assert result == "First system"
-
-    def test_system_message_not_first(self):
-        """System message in the middle of the list is still found."""
-        messages = [
-            UserMessage(content="Hello"),
-            SystemMessage(content="Late system"),
-        ]
-        assert extract_system_message(messages) == "Late system"
-
-    def test_empty_messages(self):
-        """Empty message list returns None."""
-        assert extract_system_message([]) is None
-
-    def test_empty_system_content(self):
-        """System message with empty string content is returned."""
-        messages = [SystemMessage(content="")]
-        assert extract_system_message(messages) == ""
 
 
 class TestConvertImageToAnthropic:

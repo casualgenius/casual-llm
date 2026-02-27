@@ -86,9 +86,7 @@ def create_client(
         >>>
         >>> # With name for automatic API key lookup
         >>> config = ClientConfig(
-        ...     name="openrouter",
-        ...     provider="openai",
-        ...     base_url="https://openrouter.ai/api/v1"
+        ...     name="openrouter", provider="openai", base_url="https://openrouter.ai/api/v1"
         ... )
         >>> client = create_client(config)  # uses OPENROUTER_API_KEY env var
     """
@@ -99,6 +97,7 @@ def create_client(
         return OllamaClient(
             host=host,
             timeout=config.timeout,
+            system_message_handling=config.system_message_handling,
         )
 
     elif config.provider == Provider.OPENAI:
@@ -112,6 +111,7 @@ def create_client(
             api_key=api_key,
             base_url=config.base_url,
             timeout=config.timeout,
+            system_message_handling=config.system_message_handling,
         )
 
     elif config.provider == Provider.ANTHROPIC:
@@ -146,7 +146,13 @@ def create_model(
         Configured Model instance
 
     Examples:
-        >>> from casual_llm import ClientConfig, ModelConfig, ChatOptions, create_client, create_model
+        >>> from casual_llm import (
+        ...     ClientConfig,
+        ...     ModelConfig,
+        ...     ChatOptions,
+        ...     create_client,
+        ...     create_model,
+        ... )
         >>>
         >>> client_config = ClientConfig(provider="openai", api_key="sk-...")
         >>> client = create_client(client_config)
@@ -158,4 +164,5 @@ def create_model(
         client=client,
         name=config.name,
         default_options=config.default_options,
+        system_message_handling=config.system_message_handling,
     )

@@ -40,23 +40,17 @@ uv run pytest tests/test_messages.py -v
 
 ## Code Quality
 
-### Formatting
+### Formatting and Linting
 
-We use [black](https://github.com/psf/black) for code formatting:
+We use [ruff](https://github.com/astral-sh/ruff) for both formatting and linting:
 
 ```bash
 # Format all code
-uv run black src/ tests/ examples/
+uv run ruff format src/ tests/ examples/
 
 # Check formatting without making changes
-uv run black --check src/ tests/ examples/
-```
+uv run ruff format --check src/ tests/ examples/
 
-### Linting
-
-We use [ruff](https://github.com/astral-sh/ruff) for linting:
-
-```bash
 # Run linter
 uv run ruff check src/ tests/ examples/
 
@@ -77,7 +71,7 @@ uv run mypy src/casual_llm
 
 ```bash
 # Format, lint, type check, and test
-uv run black src/ tests/ examples/
+uv run ruff format src/ tests/ examples/
 uv run ruff check src/ tests/ examples/
 uv run mypy src/casual_llm
 uv run pytest tests/
@@ -101,7 +95,7 @@ User code → Model.chat(messages, options) → Client._chat(model, messages, op
 
 1. **Write tests** - All new features should include tests
 2. **Update documentation** - Update relevant docs if adding new features
-3. **Format code** - Run black and ruff
+3. **Format code** - Run ruff format and ruff check
 4. **Type hints** - Add type hints to all new code (Python 3.10+ syntax)
 5. **Run tests** - Ensure all tests pass
 

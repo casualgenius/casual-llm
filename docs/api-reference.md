@@ -13,6 +13,7 @@ class Model:
         client: LLMClient,
         name: str,
         default_options: ChatOptions | None = None,
+        system_message_handling: Literal["passthrough", "merge"] | None = None,
     ): ...
 
     async def chat(
@@ -72,7 +73,10 @@ class ChatOptions:
     seed: int | None = None                  # OpenAI, Ollama
     top_k: int | None = None                 # Anthropic, Ollama
     extra: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 ```
+
+**`system_message_handling`:** Controls how multiple `SystemMessage`s are handled before sending to the provider. `"passthrough"` (default) sends them as-is. `"merge"` combines all system messages into one, joined by `"\n\n"`. Anthropic always sends all system messages as separate content blocks regardless of this setting. See [Advanced Usage](advanced.md#multiple-system-messages) for details.
 
 **Provider-specific fields:**
 
@@ -106,6 +110,7 @@ OpenAIClient(
     base_url: str | None = None,     # Custom base URL for compatible APIs
     organization: str | None = None,
     timeout: float = 60.0,
+    system_message_handling: str | None = None,  # "passthrough" or "merge"
 )
 ```
 
@@ -115,6 +120,7 @@ OpenAIClient(
 OllamaClient(
     host: str = "http://localhost:11434",
     timeout: float = 60.0,
+    system_message_handling: str | None = None,  # "passthrough" or "merge"
 )
 ```
 
@@ -127,6 +133,8 @@ AnthropicClient(
     timeout: float = 60.0,
 )
 ```
+
+> **Note:** `AnthropicClient` does not accept `system_message_handling` — it always sends all system messages as separate content blocks to the Anthropic API.
 
 ## Configuration Classes
 
@@ -143,6 +151,7 @@ class ClientConfig:
     api_key: str | None = None
     timeout: float = 60.0
     extra_kwargs: dict[str, Any] = field(default_factory=dict)
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 ```
 
 ### `ModelConfig`
@@ -154,6 +163,7 @@ Used with the `create_model()` factory function.
 class ModelConfig:
     name: str                                    # Model name (e.g., "gpt-4o-mini")
     default_options: ChatOptions | None = None   # Default options for all requests
+    system_message_handling: Literal["passthrough", "merge"] | None = None
 ```
 
 ## Factory Functions

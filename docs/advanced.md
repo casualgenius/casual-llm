@@ -153,6 +153,62 @@ response = await model.chat(
 print(response.content)  # Valid JSON matching Person schema
 ```
 
+## Multiple System Messages
+
+By default, casual-llm passes all `SystemMessage`s through to the provider as-is. This works well for OpenAI and Ollama, which natively support multiple system messages. However, some backends behind OpenAI-compatible APIs (e.g., certain OpenRouter models) can't handle multiple system messages.
+
+The `system_message_handling` option controls this behavior:
+
+- `"passthrough"` (default) — Send all system messages as separate entries
+- `"merge"` — Combine all system messages into one, joined by `"\n\n"`
+
+**Anthropic** always sends all system messages as separate content blocks in the `system` parameter, regardless of this setting.
+
+### Setting at different levels
+
+The setting can be configured at the client, model, or per-call level. The resolution order is: **per-call ChatOptions > Model > Client**.
+
+```python
+from casual_llm import OpenAIClient, Model, ChatOptions, SystemMessage, UserMessage
+
+# Client-level: applies to all models using this client
+client = OpenAIClient(
+    api_key="sk-...",
+    base_url="https://openrouter.ai/api/v1",
+    system_message_handling="merge",
+)
+
+# Model-level: overrides client for this model
+model = Model(client, name="some-model", system_message_handling="merge")
+
+# Per-call: overrides everything for this single request
+messages = [
+    SystemMessage(content="You are a helpful assistant."),
+    SystemMessage(content="Always respond in markdown."),
+    UserMessage(content="Hello!"),
+]
+response = await model.chat(messages, ChatOptions(system_message_handling="merge"))
+# The two system messages are merged into one before sending
+```
+
+### Using with factory functions
+
+```python
+from casual_llm import ClientConfig, ModelConfig, create_client, create_model
+
+client_config = ClientConfig(
+    provider="openai",
+    base_url="https://openrouter.ai/api/v1",
+    name="openrouter",
+    system_message_handling="merge",
+)
+client = create_client(client_config)
+
+model_config = ModelConfig(name="qwen/qwen-2.5-72b-instruct")
+model = create_model(client, model_config)
+# model inherits "merge" from the client config
+```
+
 ## Per-Model Usage Tracking
 
 Each `Model` instance tracks its own token usage:

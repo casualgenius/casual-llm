@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0] - 2026-02-26
+
+### Added
+- **Multiple system message handling**: New `system_message_handling` option (`"passthrough"` or `"merge"`) on `ChatOptions`, `ClientConfig`, `ModelConfig`, and `Model`. Configurable at client, model, or per-call level with resolution chain: per-call > model > client > default (`"passthrough"`). Anthropic provider now sends all system messages as separate content blocks. OpenAI and Ollama support merging multiple system messages into one when configured.
+- **`extract_system_messages()`**: New function replacing `extract_system_message()` that returns all system messages as Anthropic content block dicts.
+- **`merge_system_messages()`**: New utility that combines multiple `SystemMessage`s into a single message joined by `"\n\n"`.
+
 ## [0.7.0] - 2026-02-26
 
 ### Added

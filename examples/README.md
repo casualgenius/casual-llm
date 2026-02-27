@@ -90,6 +90,40 @@ uv run python examples/basic_anthropic.py
 
 These examples demonstrate specific features and advanced capabilities.
 
+### [`system_messages.py`](system_messages.py)
+
+Multiple system message handling across providers.
+
+**What it demonstrates:**
+- Sending multiple system messages (composing prompts from separate sources)
+- OpenAI passthrough mode (default) — each system message sent separately
+- OpenAI merge mode — all system messages combined into one
+- Anthropic content blocks — each system message as a separate content block
+
+**Requirements:**
+- OpenAI API key and/or Anthropic API key
+
+**Environment variables:**
+- `OPENAI_API_KEY` (optional)
+- `OPENAI_MODEL` (optional, defaults to `gpt-4.1-nano`)
+- `OPENAI_ENDPOINT` (optional)
+- `ANTHROPIC_API_KEY` (optional)
+- `ANTHROPIC_MODEL` (optional, defaults to `claude-haiku-4-5-20251001`)
+
+**Run:**
+```bash
+# With both providers
+OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... uv run python examples/system_messages.py
+
+# OpenAI only
+OPENAI_API_KEY=sk-... uv run python examples/system_messages.py
+
+# Anthropic only
+ANTHROPIC_API_KEY=sk-ant-... uv run python examples/system_messages.py
+```
+
+---
+
 ### [`message_formatting.py`](message_formatting.py)
 
 Message model examples (no API calls required).

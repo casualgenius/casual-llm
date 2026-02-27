@@ -17,6 +17,7 @@ from casual_llm.message_converters import (
     convert_messages_to_openai,
     convert_tool_calls_from_openai,
 )
+from casual_llm.message_converters.utils import merge_system_messages
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class OpenAIClient:
         base_url: str | None = None,
         organization: str | None = None,
         timeout: float = 60.0,
+        system_message_handling: str | None = None,
     ):
         """
         Initialize OpenAI client.
@@ -57,6 +59,8 @@ class OpenAIClient:
             base_url: Base URL for API (e.g., "https://openrouter.ai/api/v1")
             organization: OpenAI organization ID (optional)
             timeout: HTTP request timeout in seconds
+            system_message_handling: How to handle multiple system messages
+                ("passthrough" or "merge"). Default is "passthrough".
         """
         client_kwargs: dict[str, Any] = {"timeout": timeout}
 
@@ -68,6 +72,7 @@ class OpenAIClient:
             client_kwargs["organization"] = organization
 
         self.client = AsyncOpenAI(**client_kwargs)
+        self.system_message_handling = system_message_handling
 
         logger.info("OpenAIClient initialized: base_url=%s", base_url or "default")
 
@@ -79,6 +84,10 @@ class OpenAIClient:
         stream: bool = False,
     ) -> dict[str, Any]:
         """Build the request kwargs dict for the OpenAI API call."""
+        handling = options.system_message_handling or self.system_message_handling or "passthrough"
+        if handling == "merge":
+            messages = merge_system_messages(messages)
+
         chat_messages = convert_messages_to_openai(messages)
         logger.debug("Converted %d messages to OpenAI format", len(messages))
 

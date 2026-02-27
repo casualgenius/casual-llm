@@ -114,9 +114,7 @@ async def fetch_image_as_base64(
             or if httpx is not installed.
 
     Example:
-        >>> base64_data, media_type = await fetch_image_as_base64(
-        ...     "https://example.com/image.jpg"
-        ... )
+        >>> base64_data, media_type = await fetch_image_as_base64("https://example.com/image.jpg")
         >>> print(media_type)
         image/jpeg
     """

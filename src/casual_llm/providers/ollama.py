@@ -22,6 +22,7 @@ from casual_llm.message_converters import (
     convert_messages_to_ollama,
     convert_tool_calls_from_ollama,
 )
+from casual_llm.message_converters.utils import merge_system_messages
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class OllamaClient:
         self,
         host: str = "http://localhost:11434",
         timeout: float = 60.0,
+        system_message_handling: str | None = None,
     ):
         """
         Initialize Ollama client.
@@ -58,6 +60,8 @@ class OllamaClient:
         Args:
             host: Ollama server URL (e.g., "http://localhost:11434")
             timeout: HTTP request timeout in seconds
+            system_message_handling: How to handle multiple system messages
+                ("passthrough" or "merge"). Default is "passthrough".
         """
         if AsyncClient is None:
             raise ImportError(
@@ -67,6 +71,7 @@ class OllamaClient:
 
         self.host = host.rstrip("/")  # Remove trailing slashes
         self.timeout = timeout
+        self.system_message_handling = system_message_handling
 
         # Create async client
         self.client = AsyncClient(host=self.host, timeout=timeout)
@@ -81,6 +86,10 @@ class OllamaClient:
         stream: bool = False,
     ) -> dict[str, Any]:
         """Build the request kwargs dict for the Ollama API call."""
+        handling = options.system_message_handling or self.system_message_handling or "passthrough"
+        if handling == "merge":
+            messages = merge_system_messages(messages)
+
         # Convert messages to Ollama format using converter (async for image support)
         chat_messages = await convert_messages_to_ollama(messages)
         logger.debug("Converted %d messages to Ollama format", len(messages))

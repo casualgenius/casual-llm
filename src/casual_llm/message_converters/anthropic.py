@@ -106,31 +106,44 @@ def _convert_user_content_to_anthropic(
     return content_blocks
 
 
-def extract_system_message(messages: list[ChatMessage]) -> str | None:
+def extract_system_messages(messages: list[ChatMessage]) -> list[dict[str, str]] | None:
     """
-    Extract system message content from the messages list.
+    Extract all system messages as Anthropic content blocks.
 
-    Anthropic requires system messages to be passed as a separate parameter,
-    not as part of the messages array. This function extracts the first
-    system message content for use with the Anthropic API.
+    Anthropic requires system messages to be passed as a separate ``system``
+    parameter, not as part of the messages array. This function collects
+    every SystemMessage and returns them as TextBlockParam dicts suitable
+    for the Anthropic SDK.
 
     Args:
         messages: List of ChatMessage objects
 
     Returns:
-        System message content string, or None if no system message present
+        List of ``{"type": "text", "text": ...}`` dicts, or None if no
+        system messages are present.
 
     Examples:
         >>> from casual_llm import SystemMessage, UserMessage
-        >>> messages = [SystemMessage(content="You are helpful"), UserMessage(content="Hello")]
-        >>> extract_system_message(messages)
-        'You are helpful'
+        >>> msgs = [
+        ...     SystemMessage(content="You are helpful"),
+        ...     UserMessage(content="Hello"),
+        ...     SystemMessage(content="Be concise"),
+        ... ]
+        >>> extract_system_messages(msgs)
+        [{'type': 'text', 'text': 'You are helpful'}, {'type': 'text', 'text': 'Be concise'}]
     """
+    blocks: list[dict[str, str]] = []
     for msg in messages:
         if msg.role == "system":
-            logger.debug("Extracted system message")
-            return msg.content
-    return None
+            stripped = msg.content.strip()
+            if stripped:
+                blocks.append({"type": "text", "text": stripped})
+
+    if not blocks:
+        return None
+
+    logger.debug("Extracted %d system message content blocks", len(blocks))
+    return blocks
 
 
 def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str, Any]]:
@@ -138,8 +151,8 @@ def convert_messages_to_anthropic(messages: list[ChatMessage]) -> list[dict[str,
     Convert casual-llm ChatMessage list to Anthropic format.
 
     Handles all message types including tool calls and tool results.
-    Note: System messages are excluded - use extract_system_message() to get
-    the system message content for the separate `system` parameter.
+    Note: System messages are excluded - use extract_system_messages() to get
+    the system message content blocks for the separate `system` parameter.
 
     Anthropic format differences:
     - System messages are NOT included (passed separately)
@@ -284,6 +297,6 @@ def convert_tool_calls_from_anthropic(
 
 __all__ = [
     "convert_messages_to_anthropic",
-    "extract_system_message",
+    "extract_system_messages",
     "convert_tool_calls_from_anthropic",
 ]
